@@ -1,0 +1,21 @@
+[package]
+authors = ['Parity Technologies <admin@parity.io>']
+edition = '2018'
+name = 'erc20-runtime-wasm'
+version = '1.0.0'
+
+[features]
+default = []
+std = ['erc20-runtime/std']
+
+[workspace]
+members = []
+[dependencies.erc20-runtime]
+default-features = false
+path = '..'
+[profile.release]
+lto = true
+panic = 'abort'
+
+[lib]
+crate-type = ['cdylib']
