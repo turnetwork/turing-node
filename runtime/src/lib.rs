@@ -55,7 +55,6 @@ pub type BlockNumber = u64;
 /// Index of an account's extrinsic in the chain.
 pub type Nonce = u64;
 
-/// Used for the module in `./erc20.rs`
 mod erc20;
 mod erc721;
 mod erc20_multi;
@@ -231,8 +230,8 @@ construct_runtime!(
 		ERC20: erc20::{Module, Call, Storage, Event<T>, Config<T>},
 		ERC721: erc721::{Module, Call, Storage, Event<T>, Config<T>},
 		Erc20Multi: erc20_multi::{Module, Call, Storage, Event<T>},
-		Token: token,
-		Tcr: dao,
+		Tcr: dao::{Module, Call, Storage, Event<T>, Config<T>},
+		Token: token::{Module, Call, Storage, Event<T>, Config<T>},
 	}
 );
 

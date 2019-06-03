@@ -91,9 +91,3 @@ rev = '040a45a7e2900e4d9f5c6be364ceb93e280a512c'
 git = 'https://github.com/paritytech/substrate.git'
 rev = '040a45a7e2900e4d9f5c6be364ceb93e280a512c'
 package = 'substrate-transaction-pool'
-
-
-[workspace]
-members = [
-    "runtime",
-]
