@@ -1,4 +1,4 @@
-# erc20
+# contract
 
 A new SRML-based Substrate node, ready for hacking.
 

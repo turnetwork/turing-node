@@ -1,16 +1,16 @@
 [package]
-authors = ['Parity Technologies <admin@parity.io>']
+authors = ['JNHua <huajiannan@abmatrix.cn>']
 edition = '2018'
-name = 'erc20-runtime-wasm'
+name = 'contract-runtime-wasm'
 version = '1.0.0'
 
 [features]
 default = []
-std = ['erc20-runtime/std']
+std = ['contract-runtime/std']
 
 [workspace]
 members = []
-[dependencies.erc20-runtime]
+[dependencies.contract-runtime]
 default-features = false
 path = '..'
 [profile.release]

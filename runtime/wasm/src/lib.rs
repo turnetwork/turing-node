@@ -2,4 +2,4 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use erc20_runtime::*;
+pub use contract_runtime::*;

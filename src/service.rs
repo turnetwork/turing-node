@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use log::info;
 use transaction_pool::{self, txpool::{Pool as TransactionPool}};
-use erc20_runtime::{self, GenesisConfig, opaque::Block, RuntimeApi};
+use contract_runtime::{self, GenesisConfig, opaque::Block, RuntimeApi};
 use substrate_service::{
 	FactoryFullConfiguration, LightComponents, FullComponents, FullBackend,
 	FullClient, LightClient, LightBackend, FullExecutor, LightExecutor,
@@ -24,9 +24,9 @@ pub use substrate_executor::NativeExecutor;
 // Our native executor instance.
 native_executor_instance!(
 	pub Executor,
-	erc20_runtime::api::dispatch,
-	erc20_runtime::native_version,
-	include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/erc20_runtime_wasm.compact.wasm")
+	contract_runtime::api::dispatch,
+	contract_runtime::native_version,
+	include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/contract_runtime_wasm.compact.wasm")
 );
 
 #[derive(Default)]

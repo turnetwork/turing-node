@@ -55,8 +55,12 @@ pub type BlockNumber = u64;
 /// Index of an account's extrinsic in the chain.
 pub type Nonce = u64;
 
-/// Used for the module template in `./template.rs`
-mod template;
+/// Used for the module in `./erc20.rs`
+mod erc20;
+mod erc721;
+mod erc20_multi;
+mod token;
+mod dao;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -92,8 +96,8 @@ pub mod opaque {
 
 /// This runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("erc20"),
-	impl_name: create_runtime_str!("erc20"),
+	spec_name: create_runtime_str!("contract_runtime"),
+	impl_name: create_runtime_str!("contract_runtime-node"),
 	authoring_version: 3,
 	spec_version: 3,
 	impl_version: 0,
@@ -187,10 +191,28 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
-/// Used for the module template in `./template.rs`
-impl template::Trait for Runtime {
+/// Used for the module template in `./erc20.rs`
+impl erc20::Trait for Runtime {
+	type Event = Event;
+	type Balance_in_Token = u128;
+}
+
+impl erc721::Trait for Runtime {
 	type Event = Event;
 }
+
+impl erc20_multi::Trait for Runtime {
+	type Event = Event;
+	type TokenBalance = u128;
+}
+
+//impl dao::Trait for Runtime {
+//	type Event = Event;
+//}
+//impl token::Trait for Runtime {
+//	type Event = Event;
+//	type TokenBalance = u128;
+//}
 
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, AuthorityId, AuthoritySignature>) where
@@ -205,8 +227,12 @@ construct_runtime!(
 		Indices: indices,
 		Balances: balances,
 		Sudo: sudo,
-		// Used for the module template in `./template.rs`
-		TemplateModule: template::{Module, Call, Storage, Event<T>},
+		// Used for the module erc20 in `./erc20.rs`
+		ERC20: erc20::{Module, Call, Storage, Event<T>, Config<T>},
+		ERC721: erc721::{Module, Call, Storage, Event<T>, Config<T>},
+		Erc20Multi: erc20_multi::{Module, Call, Storage, Event<T>},
+//		Token: token,
+//		Tcr: dao,
 	}
 );
 

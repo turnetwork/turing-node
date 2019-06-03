@@ -1,11 +1,12 @@
 use primitives::{ed25519, sr25519, Pair};
-use erc20_runtime::{
+use contract_runtime::{
 	AccountId, GenesisConfig, ConsensusConfig, TimestampConfig, BalancesConfig,
-	SudoConfig, IndicesConfig,
+	SudoConfig, IndicesConfig, ERC20Config, ERC721Config
 };
 use substrate_service;
 
 use ed25519::Public as AuthorityId;
+use std::marker::PhantomData;
 
 // Note this is the URL for the telemetry server
 //const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -46,7 +47,12 @@ impl Alternative {
 				|| testnet_genesis(vec![
 					authority_key("Alice")
 				], vec![
-					account_key("Alice")
+					account_key("Alice"),
+					account_key("Bob"),
+					account_key("Charlie"),
+					account_key("Dave"),
+					account_key("Eve"),
+					account_key("Ferdie"),
 				],
 					account_key("Alice")
 				),
@@ -93,7 +99,7 @@ impl Alternative {
 fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<AccountId>, root_key: AccountId) -> GenesisConfig {
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
-			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/erc20_runtime_wasm.compact.wasm").to_vec(),
+			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/contract_runtime_wasm.compact.wasm").to_vec(),
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,
@@ -114,6 +120,18 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<
 		}),
 		sudo: Some(SudoConfig {
 			key: root_key,
+		}),
+		erc20: Some(ERC20Config {
+			// set Alice as owner
+			owner: account_key("Alice"),
+			total_supply: 21000000,
+			name: "ABMatrix ERC20 Token".as_bytes().into(),
+			symbol: "ABT20".as_bytes().into(),
+		}),
+		erc721: Some(ERC721Config {
+			_genesis_phantom_data: PhantomData,
+			name: "ABMatrix ERC721 Token".as_bytes().into(),
+			symbol: "ABT721".as_bytes().into(),
 		}),
 	}
 }
