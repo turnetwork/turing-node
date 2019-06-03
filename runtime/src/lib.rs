@@ -206,13 +206,13 @@ impl erc20_multi::Trait for Runtime {
 	type TokenBalance = u128;
 }
 
-//impl dao::Trait for Runtime {
-//	type Event = Event;
-//}
-//impl token::Trait for Runtime {
-//	type Event = Event;
-//	type TokenBalance = u128;
-//}
+impl dao::Trait for Runtime {
+	type Event = Event;
+}
+impl token::Trait for Runtime {
+	type Event = Event;
+	type TokenBalance = u128;
+}
 
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, AuthorityId, AuthoritySignature>) where
@@ -231,8 +231,8 @@ construct_runtime!(
 		ERC20: erc20::{Module, Call, Storage, Event<T>, Config<T>},
 		ERC721: erc721::{Module, Call, Storage, Event<T>, Config<T>},
 		Erc20Multi: erc20_multi::{Module, Call, Storage, Event<T>},
-//		Token: token,
-//		Tcr: dao,
+		Token: token,
+		Tcr: dao,
 	}
 );
 

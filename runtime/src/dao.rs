@@ -5,7 +5,7 @@ use parity_codec::{Decode, Encode};
 use rstd::prelude::*;
 
 use runtime_io;
-use runtime_primitives::traits::{CheckedAdd, CheckedDiv, CheckedMul, Hash};
+use runtime_primitives::traits::{As, CheckedAdd, CheckedDiv, CheckedMul, Hash};
 use support::{
     decl_event, decl_module, decl_storage, dispatch::Result, ensure, StorageMap, StorageValue,
 };
@@ -473,145 +473,145 @@ impl<T: Trait> Module<T> {
         Ok(())
     }
 }
-//
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//
-//    use primitives::{Blake2Hasher, H256};
-//    use runtime_io::with_externalities;
-//    use runtime_primitives::{
-//        testing::{Digest, DigestItem, Header, UintAuthorityId},
-//        traits::{BlakeTwo256, IdentityLookup},
-//        BuildStorage,
-//    };
-//    use support::{assert_noop, assert_ok, impl_outer_origin};
-//
-//    impl_outer_origin! {
-//    pub enum Origin for Test {}
-//  }
-//
-//    // For testing the module, we construct most of a mock runtime. This means
-//    // first constructing a configuration type (`Test`) which `impl`s each of the
-//    // configuration traits of modules we want to use.
-//    #[derive(Clone, Eq, PartialEq)]
-//    pub struct Test;
-//    impl system::Trait for Test {
-//        type Origin = Origin;
-//        type Index = u64;
-//        type BlockNumber = u64;
-//        type Hash = H256;
-//        type Hashing = BlakeTwo256;
-//        type Digest = Digest;
-//        type AccountId = u64;
-//        type Lookup = IdentityLookup<u64>;
-//        type Header = Header;
-//        type Event = ();
-//        type Log = DigestItem;
-//    }
-//    impl consensus::Trait for Test {
-//        type Log = DigestItem;
-//        type SessionKey = UintAuthorityId;
-//        type InherentOfflineReport = ();
-//    }
-//    impl token::Trait for Test {
-//        type Event = ();
-//        type TokenBalance = u64;
-//    }
-//    impl timestamp::Trait for Test {
-//        type Moment = u64;
-//        type OnTimestampSet = ();
-//    }
-//    impl Trait for Test {
-//        type Event = ();
-//    }
-//    type Tcr = Module<Test>;
-//    type Token = token::Module<Test>;
-//
-//    // builds the genesis config store and sets mock values
-//    fn new_test_ext() -> runtime_io::TestExternalities<Blake2Hasher> {
-//        let mut t = system::GenesisConfig::<Test>::default()
-//            .build_storage()
-//            .unwrap()
-//            .0;
-//        t.extend(
-//            token::GenesisConfig::<Test> { total_supply: 1000 }
-//                .build_storage()
-//                .unwrap()
-//                .0,
-//        );
-//        t.extend(
-//            GenesisConfig::<Test> {
-//                owner: 1,
-//                min_deposit: 100,
-//                apply_stage_len: 10,
-//                commit_stage_len: 10,
-//                poll_nonce: 1,
-//            }
-//                .build_storage()
-//                .unwrap()
-//                .0,
-//        );
-//        t.into()
-//    }
-//
-//    #[test]
-//    fn should_fail_low_deposit() {
-//        with_externalities(&mut new_test_ext(), || {
-//            assert_noop!(
-//        Tcr::propose(Origin::signed(1), "ListingItem1".as_bytes().into(), 99),
-//        "deposit should be more than min_deposit"
-//      );
-//        });
-//    }
-//
-//    #[test]
-//    fn should_init() {
-//        with_externalities(&mut new_test_ext(), || {
-//            assert_ok!(Tcr::init(Origin::signed(1)));
-//        });
-//    }
-//
-//    #[test]
-//    fn should_pass_propose() {
-//        with_externalities(&mut new_test_ext(), || {
-//            assert_ok!(Tcr::init(Origin::signed(1)));
-//            assert_ok!(Tcr::propose(
-//        Origin::signed(1),
-//        "ListingItem1".as_bytes().into(),
-//        101
-//      ));
-//        });
-//    }
-//
-//    #[test]
-//    fn should_fail_challenge_same_owner() {
-//        with_externalities(&mut new_test_ext(), || {
-//            assert_ok!(Tcr::init(Origin::signed(1)));
-//            assert_ok!(Tcr::propose(
-//        Origin::signed(1),
-//        "ListingItem1".as_bytes().into(),
-//        101
-//      ));
-//            assert_noop!(
-//        Tcr::challenge(Origin::signed(1), 0, 101),
-//        "You cannot challenge your own listing."
-//      );
-//        });
-//    }
-//
-//    #[test]
-//    fn should_pass_challenge() {
-//        with_externalities(&mut new_test_ext(), || {
-//            assert_ok!(Tcr::init(Origin::signed(1)));
-//            assert_ok!(Tcr::propose(
-//        Origin::signed(1),
-//        "ListingItem1".as_bytes().into(),
-//        101
-//      ));
-//            assert_ok!(Token::transfer(Origin::signed(1), 2, 200));
-//            assert_ok!(Tcr::challenge(Origin::signed(2), 0, 101));
-//        });
-//    }
-//}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use primitives::{Blake2Hasher, H256};
+    use runtime_io::with_externalities;
+    use runtime_primitives::{
+        testing::{Digest, DigestItem, Header, UintAuthorityId},
+        traits::{BlakeTwo256, IdentityLookup},
+        BuildStorage,
+    };
+    use support::{assert_noop, assert_ok, impl_outer_origin};
+
+    impl_outer_origin! {
+    pub enum Origin for Test {}
+  }
+
+    // For testing the module, we construct most of a mock runtime. This means
+    // first constructing a configuration type (`Test`) which `impl`s each of the
+    // configuration traits of modules we want to use.
+    #[derive(Clone, Eq, PartialEq)]
+    pub struct Test;
+    impl system::Trait for Test {
+        type Origin = Origin;
+        type Index = u64;
+        type BlockNumber = u64;
+        type Hash = H256;
+        type Hashing = BlakeTwo256;
+        type Digest = Digest;
+        type AccountId = u64;
+        type Lookup = IdentityLookup<u64>;
+        type Header = Header;
+        type Event = ();
+        type Log = DigestItem;
+    }
+    impl consensus::Trait for Test {
+        type Log = DigestItem;
+        type SessionKey = UintAuthorityId;
+        type InherentOfflineReport = ();
+    }
+    impl token::Trait for Test {
+        type Event = ();
+        type TokenBalance = u64;
+    }
+    impl timestamp::Trait for Test {
+        type Moment = u64;
+        type OnTimestampSet = ();
+    }
+    impl Trait for Test {
+        type Event = ();
+    }
+    type Tcr = Module<Test>;
+    type Token = token::Module<Test>;
+
+    // builds the genesis config store and sets mock values
+    fn new_test_ext() -> runtime_io::TestExternalities<Blake2Hasher> {
+        let mut t = system::GenesisConfig::<Test>::default()
+            .build_storage()
+            .unwrap()
+            .0;
+        t.extend(
+            token::GenesisConfig::<Test> { total_supply: 1000 }
+                .build_storage()
+                .unwrap()
+                .0,
+        );
+        t.extend(
+            GenesisConfig::<Test> {
+                owner: 1,
+                min_deposit: 100,
+                apply_stage_len: 10,
+                commit_stage_len: 10,
+                poll_nonce: 1,
+            }
+                .build_storage()
+                .unwrap()
+                .0,
+        );
+        t.into()
+    }
+
+    #[test]
+    fn should_fail_low_deposit() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_noop!(
+        Tcr::propose(Origin::signed(1), "ListingItem1".as_bytes().into(), 99),
+        "deposit should be more than min_deposit"
+      );
+        });
+    }
+
+    #[test]
+    fn should_init() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Tcr::init(Origin::signed(1)));
+        });
+    }
+
+    #[test]
+    fn should_pass_propose() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Tcr::init(Origin::signed(1)));
+            assert_ok!(Tcr::propose(
+        Origin::signed(1),
+        "ListingItem1".as_bytes().into(),
+        101
+      ));
+        });
+    }
+
+    #[test]
+    fn should_fail_challenge_same_owner() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Tcr::init(Origin::signed(1)));
+            assert_ok!(Tcr::propose(
+        Origin::signed(1),
+        "ListingItem1".as_bytes().into(),
+        101
+      ));
+            assert_noop!(
+        Tcr::challenge(Origin::signed(1), 0, 101),
+        "You cannot challenge your own listing."
+      );
+        });
+    }
+
+    #[test]
+    fn should_pass_challenge() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Tcr::init(Origin::signed(1)));
+            assert_ok!(Tcr::propose(
+        Origin::signed(1),
+        "ListingItem1".as_bytes().into(),
+        101
+      ));
+            assert_ok!(Token::transfer(Origin::signed(1), 2, 200));
+            assert_ok!(Tcr::challenge(Origin::signed(2), 0, 101));
+        });
+    }
+}
 

@@ -4,7 +4,7 @@ use rstd::prelude::Vec;
 use support::{ensure, Parameter, StorageMap, decl_module, decl_storage, decl_event, dispatch::Result};
 use system::ensure_signed;
 use parity_codec::Codec;
-use runtime_primitives::traits::{SimpleArithmetic, Member, CheckedAdd, CheckedSub};
+use runtime_primitives::traits::{As, SimpleArithmetic, Member, CheckedAdd, CheckedSub};
 
 #[cfg(feature = "std")]
 use runtime_io::with_storage;
@@ -12,7 +12,7 @@ use runtime_io::with_storage;
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-	type Balance_in_Token: Parameter + Member + SimpleArithmetic + Codec + Default + Copy + From<Self::BlockNumber>;
+	type Balance_in_Token: Parameter + Member + SimpleArithmetic + Codec + Default + Copy + As<usize> + As<u64>;
 }
 
 // This module's storage items.

@@ -7,13 +7,13 @@ use rstd::prelude::*;
 use parity_codec::Codec;
 use support::{dispatch::Result, StorageMap, Parameter, StorageValue, decl_storage, decl_module, decl_event, ensure};
 use system::{self, ensure_signed};
-use runtime_primitives::traits::{CheckedSub, CheckedAdd, Member, SimpleArithmetic};
+use runtime_primitives::traits::{As, CheckedSub, CheckedAdd, Member, SimpleArithmetic};
 
 // trait for this module
 // contains type definitions
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-    type TokenBalance: Parameter + Member + SimpleArithmetic + Codec + Default + Copy + From<Self::BlockNumber>;
+    type TokenBalance: Parameter + Member + SimpleArithmetic + Codec + Default + Copy + As<usize> + As<u64>;
 }
 
 // public interface for this runtime module

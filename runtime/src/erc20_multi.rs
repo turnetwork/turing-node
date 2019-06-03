@@ -5,14 +5,14 @@ use rstd::prelude::Vec;
 use support::{ensure, Parameter, StorageValue, StorageMap, decl_module, decl_storage, decl_event, dispatch::Result};
 use parity_codec::{Codec, Encode, Decode};
 use runtime_primitives::traits::{
-    SimpleArithmetic, Member, CheckedAdd, CheckedSub
+    SimpleArithmetic, As, Member, CheckedAdd, CheckedSub
 };
 use system::ensure_signed;
 
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-    type TokenBalance: Parameter + Member + SimpleArithmetic + Codec + Default + Copy + From<Self::BlockNumber>;
+    type TokenBalance: Parameter + Member + SimpleArithmetic + Codec + Default + Copy + As<usize> + As<u64>;
 }
 
 // struct to store the token details
