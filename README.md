@@ -1,6 +1,6 @@
-# contract
+# contract-in-runtime
 
-A new SRML-based Substrate node, ready for hacking.
+A SRML-based Substrate node, ready for hacking.
 
 # Building
 
@@ -22,13 +22,15 @@ Build the WebAssembly binary:
 ./scripts/build.sh
 ```
 
-Build all native code:
+Build all native code: 
 
 ```bash
-cargo build
+cargo build --release
 ```
 
 # Run
+
+## Run Development Chain
 
 You can start a development chain with:
 
@@ -66,3 +68,17 @@ cargo run -- \
 ```
 
 Additional CLI usage options are available and may be shown by running `cargo run -- --help`.
+
+## Run Development Substrate Node
+
+```bash
+./target/release/substratekitties --dev
+```
+
+# UI
+
+[Substrate Portal](https://polkadot.js.org/apps/)
+
+```
+Settings > remote node/endpoint to connect to > Local Node (127.0.0.1:9944)
+```
