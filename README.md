@@ -1,4 +1,4 @@
-# contract-in-runtime
+# Token_node
 
 A SRML-based Substrate node, ready for hacking.
 
