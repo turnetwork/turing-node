@@ -7,4 +7,5 @@
 
 .idea/
 Cargo.lock
+runtime/wasm/Cargo.lock
 
