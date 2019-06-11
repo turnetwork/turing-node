@@ -57,7 +57,8 @@ pub type Nonce = u64;
 
 mod erc20;
 mod erc721;
-mod erc20_multi;
+mod dao;
+mod lockabletoken;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -198,9 +199,13 @@ impl erc721::Trait for Runtime {
 	type Event = Event;
 }
 
-impl erc20_multi::Trait for Runtime {
+impl lockabletoken::Trait for Runtime{
 	type Event = Event;
 	type TokenBalance = u128;
+}
+
+impl dao::Trait for Runtime{
+	type Event = Event;
 }
 
 construct_runtime!(
@@ -219,7 +224,8 @@ construct_runtime!(
 		// Used for the module erc20 in `./erc20.rs`
 		ERC20: erc20::{Module, Call, Storage, Event<T>, Config<T>},
 		ERC721: erc721::{Module, Call, Storage, Event<T>, Config<T>},
-		Erc20Multi: erc20_multi::{Module, Call, Storage, Event<T>},
+		LockableToken: lockabletoken::{Module, Call, Storage, Event<T>, Config<T>},
+		Dao: dao::{Module, Call, Storage, Event<T>, Config<T>},
 	}
 );
 

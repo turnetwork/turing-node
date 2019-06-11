@@ -1,7 +1,7 @@
 use primitives::{ed25519, sr25519, Pair};
 use token_node::{
 	AccountId, GenesisConfig, ConsensusConfig, TimestampConfig, BalancesConfig,
-	SudoConfig, IndicesConfig, ERC20Config, ERC721Config
+	SudoConfig, IndicesConfig, ERC20Config, ERC721Config, DaoConfig, LockableTokenConfig
 };
 use substrate_service;
 
@@ -96,6 +96,13 @@ impl Alternative {
 	}
 }
 
+fn days(time: u64) -> u64{
+	time*24*3600
+}
+fn weeks(time: u64) -> u64{
+	time*7*24*3600
+}
+
 fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<AccountId>, root_key: AccountId) -> GenesisConfig {
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
@@ -132,6 +139,23 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<
 			_genesis_phantom_data: PhantomData,
 			name: "ABMatrix ERC721 Token".as_bytes().into(),
 			symbol: "ABT721".as_bytes().into(),
+		}),
+		lockabletoken: Some(LockableTokenConfig{
+			total_supply: 21000000,
+			name: "ABMatrix Token".as_bytes().into(),
+			symbol: "ABT".as_bytes().into(),
+			decimal: 18,
+		}),
+		dao: Some(DaoConfig {
+			// set Alice as curator
+			curator: account_key("Alice"),
+			min_proposal_deposit: 100,
+			min_quorum_divisor: 7,
+			min_proposal_debate_period: weeks(2),
+			quorum_havling_period: weeks(25),
+			execute_proposal_period: days(10),
+			pre_support_time: days(2),
+			max_deposit_divisor: 100,
 		}),
 	}
 }
