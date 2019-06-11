@@ -235,25 +235,6 @@ impl<T: Trait> Module<T> {
 
         Ok(())
     }
-
-    fn remove_token_from_all_tokens_enumeration(token_id: T::Hash) -> Result {
-        let total_supply = Self::total_supply();
-        let new_total_supply = total_supply.checked_sub(1)
-            .ok_or("Underflow removing token from total supply")?;
-        let last_token_index = new_total_supply;
-        let token_index = <TokensIndex<T>>::get(&token_id);
-        let last_token_id = <Tokens<T>>::get(last_token_index);
-
-        <Tokens<T>>::insert(token_index, last_token_id);
-        <TokensIndex<T>>::insert(last_token_id, token_index);
-
-        <Tokens<T>>::remove(last_token_index);
-        <TokensIndex<T>>::remove(token_id);
-
-        <TotalSupply<T>>::put(new_total_supply);
-
-        Ok(())
-    }
 	// End ERC721 : Enumerable : Internal Functions //
 
 	/// Internal function to mint a new token.
