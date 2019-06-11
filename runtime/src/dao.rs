@@ -45,7 +45,7 @@ pub struct Proposal<U, V, W, X> {
 decl_storage! {
     trait Store for Module<T: Trait> as Dao {
         // stores the curator in the genesis config
-        Curator get(curator) config(): T::AccountId;
+        Curator get(curator) config(): Option<T::AccountId>;
 
         VoteNo get(vote_no): map T::AccountId => bool;
         VoteYes get(vote_yes): map T::AccountId => bool;
@@ -80,11 +80,11 @@ decl_storage! {
     // curator then has all the tokens and admin rights to the DAO
     add_extra_genesis {
         build(|storage: &mut runtime_primitives::StorageOverlay, _: &mut runtime_primitives::ChildrenStorageOverlay, config: &GenesisConfig<T>| {
-            <Module<T>>::init(config.curator.clone());
             with_storage(storage, || {
                 <LastTimeMinQuorumMet<T>>::put(<timestamp::Module<T>>::get());
                 <ProposalCount<T>>::put(1);
                 <AllowedRecipients<T>>::insert(config.curator.clone(), true);
+                <Module<T>>::init();
             });
         })
     }
@@ -323,7 +323,7 @@ decl_module! {
     fn change_proposal_deposit(origin, proposal_deposit: T::TokenBalance) -> Result{
         let sender = ensure_signed(origin)?;
         let max_deposit_divisor = Self::max_deposit_divisor().ok_or("max_deposit_divisor not set?")?;
-        if sender != Self::curator() || proposal_deposit > Self::actual_balance() / T::TokenBalance::sa(max_deposit_divisor.into()) 
+        if sender != Self::curator().unwrap() || proposal_deposit > Self::actual_balance() / T::TokenBalance::sa(max_deposit_divisor.into())
         {
             return Err("change_proposal_deposit failed");
         }
@@ -333,7 +333,7 @@ decl_module! {
 
     fn change_allowed_recipients(origin, recipient: T::AccountId, allowed: bool) ->Result{
         let sender = ensure_signed(origin)?;
-        if sender != Self::curator() {
+        if sender != Self::curator().unwrap() {
             return Err("Only curator can change whitelist");
         }
         <AllowedRecipients<T>>::insert(recipient.clone(), allowed);
@@ -349,7 +349,7 @@ decl_module! {
         let last_time_min_quorum_met = Self::last_time_min_quorum_met().ok_or("last_time_min_quorum_met not set?")?;
         let min_quorum_divisor = Self::min_quorum_divisor().ok_or("minQuorumDivisor not set?")?;
 
-        if (last_time_min_quorum_met < (now.clone() - quorum_havling_period) || sender == Self::curator())
+        if (last_time_min_quorum_met < (now.clone() - quorum_havling_period) || sender == Self::curator().unwrap())
             && last_time_min_quorum_met < (now.clone() - min_proposal_debate_period)
             && Self::proposal_count() > 1 {
             <LastTimeMinQuorumMet<T>>::put(now);
@@ -371,8 +371,10 @@ decl_module! {
 // implementation of mudule
 // utility and private functions
 impl<T: Trait> Module<T> {
-    fn init(sender: T::AccountId){
-        <token::Module<T>>::init(sender);
+    fn init() -> Result {
+        let curator = Self::curator().ok_or("curator not set?")?;
+        <token::Module<T>>::init(curator);
+        Ok(())
     }
 
     fn close_proposal(proposal_id: u32) -> Result{
@@ -389,7 +391,7 @@ impl<T: Trait> Module<T> {
 
     // actualBalance must not underflow
     fn actual_balance() -> T::TokenBalance {
-        let balance = <token::Module<T>>::balance_of(Self::curator());
+        let balance = <token::Module<T>>::balance_of(Self::curator().unwrap());
         balance - Self::sum_of_proposal_deposits()
     }
 
@@ -505,7 +507,8 @@ mod tests {
     #[test]
     fn should_init(){
        with_externalities(&mut new_test_ext(), || {
-            assert_eq!(Dao::curator(), 1);
+            assert_ok!(Dao::init());
+            assert_eq!(Dao::curator().unwrap(), 1);
             assert_eq!(Dao::min_proposal_deposit().unwrap(), 100);
             assert_eq!(Dao::min_quorum_divisor().unwrap(), 7);
             assert_eq!(Dao::min_proposal_debate_period().unwrap(), 14);
@@ -513,9 +516,9 @@ mod tests {
             assert_eq!(Dao::execute_proposal_period().unwrap(), 10);
             assert_eq!(Dao::pre_support_time().unwrap(), 2);
             assert_eq!(Dao::max_deposit_divisor().unwrap(), 100);
-            
+
             assert_eq!(Token::total_supply(), 21000000);
-            //assert_eq!(Token::balance_of(1), 21000000);
+            assert_eq!(Token::balance_of(1), 21000000);
             assert_eq!(Token::balance_of(2), 0);
 
             assert_eq!(Dao::allowed_recipients(1), true);
@@ -523,13 +526,14 @@ mod tests {
 
             assert_eq!(Dao::proposal_count(), 1);
             assert_eq!(Dao::last_time_min_quorum_met().unwrap(), 0);
-            
-        }); 
+
+        });
     }
 
     #[test]
     fn should_fail_insufficient_balance(){
         with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Dao::init());;
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(2),
@@ -548,6 +552,7 @@ mod tests {
     #[test]
     fn should_fail_not_allowed_recipients(){
         with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Dao::init());;
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(1),
@@ -566,6 +571,7 @@ mod tests {
     #[test]
     fn should_fail_short_debating_period(){
         with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Dao::init());;
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(1),
@@ -584,6 +590,7 @@ mod tests {
     #[test]
     fn should_fail_long_debating_period(){
         with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Dao::init());;
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(1),
@@ -602,6 +609,7 @@ mod tests {
     #[test]
     fn should_fail_low_deposit() {
         with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Dao::init());
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(1),
@@ -620,6 +628,7 @@ mod tests {
     #[test]
     fn should_pass_proposal() {
         with_externalities(&mut new_test_ext(), || {
+            assert_ok!(Dao::init());
             assert_ok!(
                 Dao::new_proposal(
                     Origin::signed(1),
