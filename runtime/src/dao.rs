@@ -82,7 +82,6 @@ decl_storage! {
         build(|storage: &mut runtime_primitives::StorageOverlay, _: &mut runtime_primitives::ChildrenStorageOverlay, config: &GenesisConfig<T>| {
             <Module<T>>::init(config.curator.clone());
             with_storage(storage, || {
-                // <Module<T>>::init(config.curator.clone());
                 <LastTimeMinQuorumMet<T>>::put(<timestamp::Module<T>>::get());
                 <ProposalCount<T>>::put(1);
                 <AllowedRecipients<T>>::insert(config.curator.clone(), true);

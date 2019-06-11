@@ -6,7 +6,7 @@ name = 'contract'
 version = '1.0.0'
 
 [[bin]]
-name = 'token_node'
+name = 'contract_node'
 path = 'src/main.rs'
 [profile.release]
 panic = 'unwind'
@@ -53,7 +53,7 @@ rev = '040a45a7e2900e4d9f5c6be364ceb93e280a512c'
 package = 'substrate-network'
 
 
-[dependencies.token_node]
+[dependencies.contract_node]
 path = 'runtime'
 
 [dependencies.primitives]

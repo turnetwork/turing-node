@@ -1,5 +1,5 @@
 use primitives::{ed25519, sr25519, Pair};
-use token_node::{
+use contract_node::{
 	AccountId, GenesisConfig, ConsensusConfig, TimestampConfig, BalancesConfig,
 	SudoConfig, IndicesConfig, ERC20Config, ERC721Config, DaoConfig, LockableTokenConfig
 };
@@ -106,7 +106,7 @@ fn weeks(time: u64) -> u64{
 fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<AccountId>, root_key: AccountId) -> GenesisConfig {
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
-			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/token_node_wasm.compact.wasm").to_vec(),
+			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/contract_node_wasm.compact.wasm").to_vec(),
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,

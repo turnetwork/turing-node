@@ -1,16 +1,16 @@
 [package]
 authors = ['JNHua <huajiannan@abmatrix.cn>']
 edition = '2018'
-name = 'token-node-wasm'
+name = 'contract-node-wasm'
 version = '1.0.0'
 
 [features]
 default = []
-std = ['token_node/std']
+std = ['contract_node/std']
 
 [workspace]
 members = []
-[dependencies.token_node]
+[dependencies.contract_node]
 default-features = false
 path = '..'
 [profile.release]

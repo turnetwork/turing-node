@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use log::info;
 use transaction_pool::{self, txpool::{Pool as TransactionPool}};
-use token_node::{self, GenesisConfig, opaque::Block, RuntimeApi};
+use contract_node::{self, GenesisConfig, opaque::Block, RuntimeApi};
 use substrate_service::{
 	FactoryFullConfiguration, LightComponents, FullComponents, FullBackend,
 	FullClient, LightClient, LightBackend, FullExecutor, LightExecutor,
@@ -24,9 +24,9 @@ pub use substrate_executor::NativeExecutor;
 // Our native executor instance.
 native_executor_instance!(
 	pub Executor,
-	token_node::api::dispatch,
-	token_node::native_version,
-	include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/token_node_wasm.compact.wasm")
+	contract_node::api::dispatch,
+	contract_node::native_version,
+	include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/contract_node_wasm.compact.wasm")
 );
 
 #[derive(Default)]
