@@ -6,6 +6,4 @@
 **/*.rs.bk
 
 .idea/
-Cargo.lock
-runtime/wasm/Cargo.lock
 

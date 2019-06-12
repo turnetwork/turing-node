@@ -61,16 +61,16 @@ decl_storage! {
         MaxDepositDivisor get(max_deposit_divisor) config(): Option<u32>;
         // DAO parameter end
 
-        Proposals get(proposals): map u32 => Proposal<T::TokenBalance, T::AccountId, T::Moment, T::Hash>;
-        ProposalCount get(proposal_count): u32;
+        Proposals get(proposals): map u64 => Proposal<T::TokenBalance, T::AccountId, T::Moment, T::Hash>;
+        ProposalCount get(proposal_count): u64;
 
         AllowedRecipients get(allowed_recipients): map T::AccountId => bool;
         // Map of addresses blocked during a vote (not allowed to transfer DAO
         // tokens). The address points to the proposal ID.
-        Blocked get(blocked): map T::AccountId => u32;
+        Blocked get(blocked): map T::AccountId => u64;
         // Map of addresses and proposal voted on by this address
-        VotingRegister get(voting_register): map (T::AccountId, u32) => u32;
-        VotingRegisterCount get(voting_register_count): map T::AccountId => u32;
+        VotingRegister get(voting_register): map (T::AccountId, u64) => u64;
+        VotingRegisterCount get(voting_register_count): map T::AccountId => u64;
         SumOfProposalDeposits get(sum_of_proposal_deposits): T::TokenBalance;
     }
 
@@ -95,10 +95,10 @@ decl_event!(
     pub enum Event<T> where AccountId = <T as system::Trait>::AccountId,
         Balance = <T as token::Trait>::TokenBalance
     {
-        ProposalAdded(u32, AccountId, Balance, Vec<u8>),
-        ProposalTaillied(u32, bool, Balance),
+        ProposalAdded(u64, AccountId, Balance, Vec<u8>),
+        ProposalTaillied(u64, bool, Balance),
         // when a proposal is voted on
-        Voted(u32, bool, AccountId),
+        Voted(u64, bool, AccountId),
         AllowedRecipientChanged(AccountId, bool),
     }
 );
@@ -137,7 +137,7 @@ decl_module! {
         let min_deposit = Self::min_proposal_deposit().ok_or("MinProposalDeposit not set?")?;
         ensure!(deposit > min_deposit, "deposit should be more than min_deposit");
 
-        let mut count = Self::proposal_count();
+        let count = Self::proposal_count();
         // to prevent curator from halving quorum before first proposal
         if count ==1 {
             <LastTimeMinQuorumMet<T>>::put(<timestamp::Module<T>>::get());
@@ -169,7 +169,10 @@ decl_module! {
         let sum = Self::sum_of_proposal_deposits();
         let new_sum = sum.checked_add(&deposit).ok_or("Overflow in calculating sumOfProposalDeposits.")?;
         <SumOfProposalDeposits<T>>::put(new_sum);
-        
+
+        <Proposals<T>>::insert(proposal_id, p);
+        <token::Module<T>>::lock(sender, deposit, proposal_id)?;
+
         Self::deposit_event(RawEvent::ProposalAdded(
             proposal_id,
             recipient,
@@ -177,14 +180,12 @@ decl_module! {
             description
         ));
 
-        <Proposals<T>>::insert(proposal_id, p);
-
         Ok(())
     }
 
-    fn vote(origin, proposal_id: u32, supports_proposal: bool) -> Result{
+    fn vote(origin, proposal_id: u64, supports_proposal: bool) -> Result{
         let sender = ensure_signed(origin)?;
-        Self::unvote(sender.clone(), proposal_id)?;
+        Self::_unvote(sender.clone(), proposal_id)?;
 
         <Proposals<T>>::mutate(proposal_id, |p| {
             if supports_proposal {
@@ -205,48 +206,50 @@ decl_module! {
 
         let voting_register_count = Self::voting_register_count(sender.clone());
         <VotingRegister<T>>::insert((sender.clone(), voting_register_count), proposal_id);
-        <VotingRegisterCount<T>>::insert(sender.clone(), voting_register_count);
+        <VotingRegisterCount<T>>::insert(sender.clone(), voting_register_count + 1);
+
         Self::deposit_event(RawEvent::Voted(proposal_id, supports_proposal, sender));
 
         Ok(())
     }
 
-    fn unvote(sender: T::AccountId, proposal_id: u32) -> Result{
-        ensure!(<timestamp::Module<T>>::get() < Self::proposals(proposal_id).voting_deadline, "Already past voting deadling");
-        <Proposals<T>>::mutate(proposal_id, |p| {
-            if Self::vote_yes(sender.clone()) {
-                p.yea -= <token::Module<T>>::balance_of(sender.clone());
-                <VoteYes<T>>::insert(sender.clone(), false);
-            }
+    // fn unvote(origin, proposal_id: u64) -> Result{
+    //     let sender = ensure_signed(origin)?;
+    //     ensure!(<timestamp::Module<T>>::get() < Self::proposals(proposal_id).voting_deadline, "Already past voting deadling");
+    //     <Proposals<T>>::mutate(proposal_id, |p| {
+    //         if Self::vote_yes(sender.clone()) {
+    //             p.yea -= <token::Module<T>>::balance_of(sender.clone());
+    //             <VoteYes<T>>::insert(sender.clone(), false);
+    //         }
 
-            if Self::vote_no(sender.clone()) {
-                p.nay -= <token::Module<T>>::balance_of(sender.clone());
-                <VoteNo<T>>::insert(sender, false);
-            }
-        });
+    //         if Self::vote_no(sender.clone()) {
+    //             p.nay -= <token::Module<T>>::balance_of(sender.clone());
+    //             <VoteNo<T>>::insert(sender.clone(), false);
+    //         }
+    //     });
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    fn unvoteall(origin) -> Result{
-        let sender = ensure_signed(origin)?;
-        let mut i = 0;
-        let length = Self::voting_register_count(sender.clone());
-        while i < length {
-            let p = Self::proposals(Self::voting_register((sender.clone(), i)));
-            if <timestamp::Module<T>>::get() < p.voting_deadline
-            {
-                Self::unvote(sender.clone(), i)?;
-            }
-            i = i + 1;
-        }
+    // fn unvoteall(origin) -> Result{
+    //     let sender = ensure_signed(origin)?;
+    //     let mut i = 0;
+    //     let length = Self::voting_register_count(sender.clone());
+    //     while i < length {
+    //         let p = Self::proposals(Self::voting_register((sender.clone(), i)));
+    //         if <timestamp::Module<T>>::get() < p.voting_deadline
+    //         {
+    //             Self::_unvote(sender.clone(), i)?;
+    //         }
+    //         i = i + 1;
+    //     }
 
-        <VotingRegisterCount<T>>::insert(sender.clone(), 0);
-        <Blocked<T>>::insert(sender.clone(), 0);
-        Ok(())
-    }
+    //     <VotingRegisterCount<T>>::insert(sender.clone(), 0);
+    //     <Blocked<T>>::insert(sender.clone(), 0);
+    //     Ok(())
+    // }
 
-    fn verify_presupport(proposal_id: u32) -> Result{
+    fn verify_presupport(proposal_id: u64) -> Result{
         let pre_support_time = Self::pre_support_time().ok_or("pre_support_time not set?")?;
         <Proposals<T>>::mutate(proposal_id, |p|{
             if <timestamp::Module<T>>::get() < p.clone().voting_deadline - pre_support_time {
@@ -260,8 +263,7 @@ decl_module! {
         Ok(())
     }
 
-    fn execute_proposal(origin, proposal_id: u32, transaction_data: Vec<u8>) -> Result{
-        let sender = ensure_signed(origin)?;
+    fn execute_proposal(proposal_id: u64, transaction_data: Vec<u8>) -> Result{
         let execute_proposal_period = Self::execute_proposal_period().ok_or("execute_proposal_period not set?")?;
         let p = Self::proposals(proposal_id);
         let now = <timestamp::Module<T>>::get();
@@ -278,7 +280,7 @@ decl_module! {
 
         if !Self::allowed_recipients(p.recipient.clone()) {
             Self::close_proposal(proposal_id)?;
-            <token::Module<T>>::transfer_impl(sender.clone(), p.creator.clone(), p.proposal_deposit)?;
+            <token::Module<T>>::unlock(p.creator.clone(), p.proposal_deposit, proposal_id)?;
             return Err("No such recipient in the whitelist.");
         }
 
@@ -295,9 +297,7 @@ decl_module! {
         }
 
         if quorum >= Self::min_quorum(p.amount) {
-            if <token::Module<T>>::transfer_impl(sender.clone(), p.creator.clone(), p.proposal_deposit).is_err() {
-                return Err("Transfer failed.");
-            }
+            <token::Module<T>>::unlock(p.creator.clone(), p.proposal_deposit, proposal_id)?;
             <LastTimeMinQuorumMet<T>>::put(now);
             if quorum > <token::Module<T>>::total_supply() / T::TokenBalance::sa(7) {
                 <MinQuorumDivisor<T>>::put(7);
@@ -307,12 +307,11 @@ decl_module! {
         <Proposals<T>>::mutate(proposal_id, |p|{
             if quorum >= Self::min_quorum(p.amount) && p.yea > p.nay && proposal_check {
                 p.proposal_passed = true;
-
-                if <token::Module<T>>::transfer_impl(sender.clone(), p.recipient.clone(), p.amount).is_err() {
-                    return Err("Tranfer failed");
-                }
             }
         });
+
+        <token::Module<T>>::lock(Self::curator().unwrap(), p.amount, proposal_id)?;
+        <token::Module<T>>::unlock(p.recipient.clone(), p.amount, proposal_id)?;
         
         Self::close_proposal(proposal_id)?;
         Self::deposit_event(RawEvent::ProposalTaillied(proposal_id, true, quorum));
@@ -322,6 +321,9 @@ decl_module! {
 
     fn change_proposal_deposit(origin, proposal_deposit: T::TokenBalance) -> Result{
         let sender = ensure_signed(origin)?;
+        if sender != Self::curator().unwrap() {
+            return Err("Only curator can change min_proposal_deposit");
+        }
         let max_deposit_divisor = Self::max_deposit_divisor().ok_or("max_deposit_divisor not set?")?;
         if sender != Self::curator().unwrap() || proposal_deposit > Self::actual_balance() / T::TokenBalance::sa(max_deposit_divisor.into())
         {
@@ -371,7 +373,24 @@ decl_module! {
 // implementation of mudule
 // utility and private functions
 impl<T: Trait> Module<T> {
-    fn close_proposal(proposal_id: u32) -> Result{
+    fn _unvote(sender: T::AccountId, proposal_id: u64) -> Result{
+        ensure!(<timestamp::Module<T>>::get() < Self::proposals(proposal_id).voting_deadline, "Already past voting deadling");
+        <Proposals<T>>::mutate(proposal_id, |p| {
+            if Self::vote_yes(sender.clone()) {
+                p.yea -= <token::Module<T>>::balance_of(sender.clone());
+                <VoteYes<T>>::insert(sender.clone(), false);
+            }
+
+            if Self::vote_no(sender.clone()) {
+                p.nay -= <token::Module<T>>::balance_of(sender.clone());
+                <VoteNo<T>>::insert(sender.clone(), false);
+            }
+        });
+
+        Ok(())
+    }
+
+    fn close_proposal(proposal_id: u64) -> Result{
         let mut p = Self::proposals(proposal_id).clone();
         if p.open {
             let sum = Self::sum_of_proposal_deposits();
@@ -640,25 +659,6 @@ mod tests {
     }
 
     #[test]
-    fn should_pass_unvote() {
-        with_externalities(&mut new_test_ext(), || {
-            assert_ok!(init());
-            assert_ok!(
-                Dao::new_proposal(
-                    Origin::signed(1),
-                    1,
-                    10,
-                    "description".as_bytes().into(),
-                    "transaction_data".as_bytes().into(),
-                    15,
-                    101
-                )
-            );
-            assert_ok!(Dao::unvote(1, 1))
-        });
-    }
-
-    #[test]
     fn should_pass_vote() {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
@@ -674,6 +674,11 @@ mod tests {
                 )
             );
             assert_ok!(Dao::vote(Origin::signed(1), 1, true));
+            assert_eq!(Dao::proposals(1).yea, 21000000-101);
+            assert_eq!(Dao::vote_yes(1), true);
+            assert_eq!(Dao::blocked(1), 1);
+            assert_eq!(Dao::voting_register((1, 0)), 1);
+            assert_eq!(Dao::voting_register_count(1), 1);
         });
     }
 
@@ -694,17 +699,28 @@ mod tests {
             );
             assert_ok!(Dao::vote(Origin::signed(1), 1, true));
             assert_ok!(Dao::verify_presupport(1));
+            assert_eq!(Dao::proposals(1).pre_support, true);
         });
+    }
+
+    #[test]
+    fn should_pass_change_allowed_recipients(){
+       with_externalities(&mut new_test_ext(), || {
+            assert_ok!(init());
+            assert_ok!(Dao::change_allowed_recipients(Origin::signed(1), 2, true));
+            assert_eq!(Dao::allowed_recipients(2), true);
+       }); 
     }
 
     #[test]
     fn should_pass_execute_proposal() {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
+            assert_ok!(Dao::change_allowed_recipients(Origin::signed(1), 2, true));
             assert_ok!(
                 Dao::new_proposal(
                     Origin::signed(1),
-                    1,
+                    2,
                     10,
                     "description".as_bytes().into(),
                     "transaction_data".as_bytes().into(),
@@ -715,7 +731,11 @@ mod tests {
             assert_ok!(Dao::vote(Origin::signed(1), 1, true));
             assert_ok!(Dao::verify_presupport(1));
             Timestamp::set_timestamp(16);
-            assert_ok!(Dao::execute_proposal(Origin::signed(1), 1, "transaction_data".as_bytes().into()));
+            assert_ok!(Dao::execute_proposal(1, "transaction_data".as_bytes().into()));
+            assert_eq!(Dao::proposals(1).proposal_passed, true);
+            assert_eq!(Token::balance_of(2), 10);
+            assert_eq!(Token::balance_of(1), 21000000-10);
+            assert_eq!(Dao::proposals(1).open, false);
         });
     }
 

@@ -28,7 +28,7 @@ decl_storage! {
 		DecimalPlaces get(decimal) config(): u32;
 
 		// special interface
-		LockedDeposits get(locked_deposits): map T::Hash => T::TokenBalance;
+		LockedDeposits get(locked_deposits): map u64 => T::TokenBalance;
 	}
 }
 
@@ -102,7 +102,7 @@ impl<T: Trait> Module<T> {
     }
 
     /// internal transfer function
-    pub fn transfer_impl(
+    fn transfer_impl(
         from: T::AccountId,
         to: T::AccountId,
         value: T::TokenBalance,
@@ -123,31 +123,31 @@ impl<T: Trait> Module<T> {
         Ok(())
     }
 
-    pub fn lock(from: T::AccountId, value: T::TokenBalance, proposal_hash: T::Hash) -> Result {
+    pub fn lock(from: T::AccountId, value: T::TokenBalance, proposal_id: u64) -> Result {
         ensure!(<Balances<T>>::exists(from.clone()), "This account does not own this token");
 
         let balance_from = Self::balance_of(from.clone());
         ensure!(balance_from > value, "Not enough balance.");
         let updated_balance_from = balance_from.checked_sub(&value).ok_or("overflow in subtracting balance")?;
-        let deposit = Self::locked_deposits(proposal_hash.clone());
+        let deposit = Self::locked_deposits(proposal_id);
         let updated_deposit = deposit.checked_add(&value).ok_or("overflow in adding deposit")?;
 
         <Balances<T>>::insert(from, updated_balance_from);
 
-        <LockedDeposits<T>>::insert(proposal_hash, updated_deposit);
+        <LockedDeposits<T>>::insert(proposal_id, updated_deposit);
 
         Ok(())
     }
 
-    pub fn unlock(to: T::AccountId, value: T::TokenBalance, proposal_hash: T::Hash) -> Result {
+    pub fn unlock(to: T::AccountId, value: T::TokenBalance, proposal_id: u64) -> Result {
         let balance_to = Self::balance_of(to.clone());
         let updated_balance_to = balance_to.checked_add(&value).ok_or("overflow in adding balance")?;
-        let deposit = Self::locked_deposits(proposal_hash.clone());
+        let deposit = Self::locked_deposits(proposal_id.clone());
         let updated_deposit = deposit.checked_sub(&value).ok_or("overflow in subtracting deposit")?;
 
         <Balances<T>>::insert(to, updated_balance_to);
 
-        <LockedDeposits<T>>::insert(proposal_hash, updated_deposit);
+        <LockedDeposits<T>>::insert(proposal_id, updated_deposit);
 
         Ok(())
     }
