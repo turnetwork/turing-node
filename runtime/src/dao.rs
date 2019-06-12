@@ -145,8 +145,7 @@ decl_module! {
 
         // safe?
         let proposal_id = count;
-        count = count + 1;
-        <ProposalCount<T>>::put(count);
+        <ProposalCount<T>>::put(count + 1);
 
         let voting_deadline = <timestamp::Module<T>>::get().checked_add(&debating_period).ok_or("Overflow when setting voting deadline.")?;
         let proposal_hash = <T as system::Trait>::Hashing::hash(&(transaction_data));
@@ -185,50 +184,46 @@ decl_module! {
 
     fn vote(origin, proposal_id: u32, supports_proposal: bool) -> Result{
         let sender = ensure_signed(origin)?;
-        let mut p = Self::proposals(proposal_id);
         Self::unvote(sender.clone(), proposal_id)?;
 
-        if supports_proposal {
-            p.yea += <token::Module<T>>::balance_of(sender.clone());
-            <VoteYes<T>>::insert(sender.clone(), true);
-        } else {
-            p.nay += <token::Module<T>>::balance_of(sender.clone());
-            <VoteNo<T>>::insert(sender.clone(), true);
-        }
+        <Proposals<T>>::mutate(proposal_id, |p| {
+            if supports_proposal {
+                p.yea += <token::Module<T>>::balance_of(sender.clone());
+                <VoteYes<T>>::insert(sender.clone(), true);
+            } else {
+                p.nay += <token::Module<T>>::balance_of(sender.clone());
+                <VoteNo<T>>::insert(sender.clone(), true);
+            }
 
-        if Self::blocked(sender.clone()) == 0
-        {
-            <Blocked<T>>::insert(sender.clone(), proposal_id);
-        } else if p.voting_deadline > Self::proposals(Self::blocked(sender.clone())).voting_deadline {
-            <Blocked<T>>::insert(sender.clone(), proposal_id);
-        }
+            if Self::blocked(sender.clone()) == 0
+            {
+                <Blocked<T>>::insert(sender.clone(), proposal_id);
+            } else if p.voting_deadline > Self::proposals(Self::blocked(sender.clone())).voting_deadline {
+                <Blocked<T>>::insert(sender.clone(), proposal_id);
+            }
+        });
 
         let voting_register_count = Self::voting_register_count(sender.clone());
         <VotingRegister<T>>::insert((sender.clone(), voting_register_count), proposal_id);
         <VotingRegisterCount<T>>::insert(sender.clone(), voting_register_count);
         Self::deposit_event(RawEvent::Voted(proposal_id, supports_proposal, sender));
 
-        <Proposals<T>>::insert(proposal_id, p);
-
         Ok(())
     }
 
     fn unvote(sender: T::AccountId, proposal_id: u32) -> Result{
-        let mut p = Self::proposals(proposal_id);
+        ensure!(<timestamp::Module<T>>::get() < Self::proposals(proposal_id).voting_deadline, "Already past voting deadling");
+        <Proposals<T>>::mutate(proposal_id, |p| {
+            if Self::vote_yes(sender.clone()) {
+                p.yea -= <token::Module<T>>::balance_of(sender.clone());
+                <VoteYes<T>>::insert(sender.clone(), false);
+            }
 
-        ensure!(<timestamp::Module<T>>::get() < p.voting_deadline, "Already past voting deadling");
-
-        if Self::vote_yes(sender.clone()) {
-            p.yea -= <token::Module<T>>::balance_of(sender.clone());
-            <VoteYes<T>>::insert(sender.clone(), false);
-        }
-
-        if Self::vote_no(sender.clone()) {
-            p.nay -= <token::Module<T>>::balance_of(sender.clone());
-            <VoteNo<T>>::insert(sender, false);
-        }
-
-        <Proposals<T>>::insert(proposal_id, p);
+            if Self::vote_no(sender.clone()) {
+                p.nay -= <token::Module<T>>::balance_of(sender.clone());
+                <VoteNo<T>>::insert(sender, false);
+            }
+        });
 
         Ok(())
     }
@@ -252,25 +247,25 @@ decl_module! {
     }
 
     fn verify_presupport(proposal_id: u32) -> Result{
-        let mut p = Self::proposals(proposal_id);
         let pre_support_time = Self::pre_support_time().ok_or("pre_support_time not set?")?;
-        if <timestamp::Module<T>>::get() < p.clone().voting_deadline - pre_support_time {
-            if p.yea > p.nay {
-                p.pre_support = true;
-            } else {
-                p.pre_support = false;
+        <Proposals<T>>::mutate(proposal_id, |p|{
+            if <timestamp::Module<T>>::get() < p.clone().voting_deadline - pre_support_time {
+                if p.yea > p.nay {
+                    p.pre_support = true;
+                } else {
+                    p.pre_support = false;
+                }
             }
-        }
-        <Proposals<T>>::insert(proposal_id, p);
+        });
         Ok(())
     }
 
     fn execute_proposal(origin, proposal_id: u32, transaction_data: Vec<u8>) -> Result{
         let sender = ensure_signed(origin)?;
-        let p = & mut Self::proposals(proposal_id);
+        let execute_proposal_period = Self::execute_proposal_period().ok_or("execute_proposal_period not set?")?;
+        let p = Self::proposals(proposal_id);
         let now = <timestamp::Module<T>>::get();
         
-        let execute_proposal_period = Self::execute_proposal_period().ok_or("execute_proposal_period not set?")?;
         if p.open && now > p.voting_deadline.clone() + execute_proposal_period {
             Self::close_proposal(proposal_id)?;
             ensure!(false,"Out of time now.");
@@ -288,14 +283,11 @@ decl_module! {
         }
 
         let mut proposal_check = true;
-
         let actual_balance = Self::actual_balance();
         if p.amount > actual_balance || p.pre_support == false {
             proposal_check = false;
         }
-
         let quorum = p.yea;
-
         // Need improved
         if transaction_data.len() >= 4 && quorum < Self::min_quorum(Self::actual_balance())
         {
@@ -312,14 +304,16 @@ decl_module! {
             }
         }
 
-        if quorum >= Self::min_quorum(p.amount) && p.yea > p.nay && proposal_check {
-            p.proposal_passed = true;
+        <Proposals<T>>::mutate(proposal_id, |p|{
+            if quorum >= Self::min_quorum(p.amount) && p.yea > p.nay && proposal_check {
+                p.proposal_passed = true;
 
-            if <token::Module<T>>::transfer_impl(sender.clone(), p.recipient.clone(), p.amount).is_err() {
-                return Err("Tranfer failed");
+                if <token::Module<T>>::transfer_impl(sender.clone(), p.recipient.clone(), p.amount).is_err() {
+                    return Err("Tranfer failed");
+                }
             }
-        }
-        <Proposals<T>>::insert(proposal_id, p);
+        });
+        
         Self::close_proposal(proposal_id)?;
         Self::deposit_event(RawEvent::ProposalTaillied(proposal_id, true, quorum));
 
