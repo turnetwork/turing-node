@@ -84,7 +84,7 @@ decl_storage! {
                 <LastTimeMinQuorumMet<T>>::put(<timestamp::Module<T>>::get());
                 <ProposalCount<T>>::put(1);
                 <AllowedRecipients<T>>::insert(config.curator.clone(), true);
-                <Module<T>>::init();
+                //<Module<T>>::init().unwrap();
             });
         })
     }
@@ -107,6 +107,14 @@ decl_module! {
   pub struct Module<T: Trait> for enum Call where origin: T::Origin {
     // initialize events for this module
     fn deposit_event<T>() = default;
+
+    fn init(origin) -> Result {
+        let curator = Self::curator().ok_or("curator not set?")?;
+        let sender = ensure_signed(origin)?;
+        ensure!(sender == curator, "Only the curator set in genesis config can initialize");
+        <token::Module<T>>::init(curator)?;
+        Ok(())
+    }
 
     fn new_proposal(
         origin,
@@ -208,7 +216,7 @@ decl_module! {
     fn unvote(sender: T::AccountId, proposal_id: u32) -> Result{
         let mut p = Self::proposals(proposal_id);
 
-        ensure!(<timestamp::Module<T>>::get() >= p.voting_deadline, "Already past voting deadling");
+        ensure!(<timestamp::Module<T>>::get() < p.voting_deadline, "Already past voting deadling");
 
         if Self::vote_yes(sender.clone()) {
             p.yea -= <token::Module<T>>::balance_of(sender.clone());
@@ -246,13 +254,14 @@ decl_module! {
     fn verify_presupport(proposal_id: u32) -> Result{
         let mut p = Self::proposals(proposal_id);
         let pre_support_time = Self::pre_support_time().ok_or("pre_support_time not set?")?;
-        if <timestamp::Module<T>>::get() < p.voting_deadline - pre_support_time {
+        if <timestamp::Module<T>>::get() < p.clone().voting_deadline - pre_support_time {
             if p.yea > p.nay {
                 p.pre_support = true;
             } else {
                 p.pre_support = false;
             }
         }
+        <Proposals<T>>::insert(proposal_id, p);
         Ok(())
     }
 
@@ -264,16 +273,13 @@ decl_module! {
         let execute_proposal_period = Self::execute_proposal_period().ok_or("execute_proposal_period not set?")?;
         if p.open && now > p.voting_deadline.clone() + execute_proposal_period {
             Self::close_proposal(proposal_id)?;
-            ensure!(false,"Not voting time now.");
+            ensure!(false,"Out of time now.");
         }
 
-        if now < p.voting_deadline
-            || !p.open
-            || p.proposal_passed
-            || p.proposal_hash != <T as system::Trait>::Hashing::hash(&transaction_data)
-        {
-            ensure!(false,"The proposal can not be executed.");
-        }
+        ensure!(now >= p.voting_deadline, "It has not yet reached the voting deadline.");
+        ensure!(p.open, "Proposal not open");
+        ensure!(!p.proposal_passed, "Proposal has already been passed");
+        ensure!(p.proposal_hash == <T as system::Trait>::Hashing::hash(&transaction_data), "Not match the proposal hash");
 
         if !Self::allowed_recipients(p.recipient.clone()) {
             Self::close_proposal(proposal_id)?;
@@ -313,7 +319,7 @@ decl_module! {
                 return Err("Tranfer failed");
             }
         }
-
+        <Proposals<T>>::insert(proposal_id, p);
         Self::close_proposal(proposal_id)?;
         Self::deposit_event(RawEvent::ProposalTaillied(proposal_id, true, quorum));
 
@@ -371,12 +377,6 @@ decl_module! {
 // implementation of mudule
 // utility and private functions
 impl<T: Trait> Module<T> {
-    fn init() -> Result {
-        let curator = Self::curator().ok_or("curator not set?")?;
-        <token::Module<T>>::init(curator);
-        Ok(())
-    }
-
     fn close_proposal(proposal_id: u32) -> Result{
         let mut p = Self::proposals(proposal_id).clone();
         if p.open {
@@ -468,6 +468,11 @@ mod tests {
     }
     type Dao = Module<Test>;
     type Token = token::Module<Test>;
+    type Timestamp = timestamp::Module<Test>;
+
+    fn init() -> Result {
+        Dao::init(Origin::signed(1))
+    }
 
     // builds the genesis config store and sets mock values
     fn new_test_ext() -> runtime_io::TestExternalities<Blake2Hasher> {
@@ -507,8 +512,16 @@ mod tests {
     #[test]
     fn should_init(){
        with_externalities(&mut new_test_ext(), || {
-            assert_ok!(Dao::init());
+            assert_ok!(init());
             assert_eq!(Dao::curator().unwrap(), 1);
+            assert_eq!(Dao::last_time_min_quorum_met().unwrap(), 0);
+            assert_eq!(Dao::proposal_count(), 1);
+            assert_eq!(Dao::allowed_recipients(1), true);
+            assert_eq!(Dao::allowed_recipients(2), false);
+            assert_eq!(Token::total_supply(), 21000000);
+            assert_eq!(Token::balance_of(1), 21000000);
+            assert_eq!(Token::balance_of(2), 0);
+
             assert_eq!(Dao::min_proposal_deposit().unwrap(), 100);
             assert_eq!(Dao::min_quorum_divisor().unwrap(), 7);
             assert_eq!(Dao::min_proposal_debate_period().unwrap(), 14);
@@ -516,24 +529,13 @@ mod tests {
             assert_eq!(Dao::execute_proposal_period().unwrap(), 10);
             assert_eq!(Dao::pre_support_time().unwrap(), 2);
             assert_eq!(Dao::max_deposit_divisor().unwrap(), 100);
-
-            assert_eq!(Token::total_supply(), 21000000);
-            assert_eq!(Token::balance_of(1), 21000000);
-            assert_eq!(Token::balance_of(2), 0);
-
-            assert_eq!(Dao::allowed_recipients(1), true);
-            assert_eq!(Dao::allowed_recipients(2), false);
-
-            assert_eq!(Dao::proposal_count(), 1);
-            assert_eq!(Dao::last_time_min_quorum_met().unwrap(), 0);
-
         });
     }
 
     #[test]
     fn should_fail_insufficient_balance(){
         with_externalities(&mut new_test_ext(), || {
-            assert_ok!(Dao::init());;
+        assert_ok!(init());
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(2),
@@ -552,7 +554,7 @@ mod tests {
     #[test]
     fn should_fail_not_allowed_recipients(){
         with_externalities(&mut new_test_ext(), || {
-            assert_ok!(Dao::init());;
+            assert_ok!(init());
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(1),
@@ -571,7 +573,7 @@ mod tests {
     #[test]
     fn should_fail_short_debating_period(){
         with_externalities(&mut new_test_ext(), || {
-            assert_ok!(Dao::init());;
+            assert_ok!(init());
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(1),
@@ -590,7 +592,7 @@ mod tests {
     #[test]
     fn should_fail_long_debating_period(){
         with_externalities(&mut new_test_ext(), || {
-            assert_ok!(Dao::init());;
+            assert_ok!(init());
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(1),
@@ -609,7 +611,7 @@ mod tests {
     #[test]
     fn should_fail_low_deposit() {
         with_externalities(&mut new_test_ext(), || {
-            assert_ok!(Dao::init());
+            assert_ok!(init());
             assert_noop!(
             Dao::new_proposal(
                 Origin::signed(1),
@@ -628,7 +630,7 @@ mod tests {
     #[test]
     fn should_pass_proposal() {
         with_externalities(&mut new_test_ext(), || {
-            assert_ok!(Dao::init());
+            assert_ok!(init());
             assert_ok!(
                 Dao::new_proposal(
                     Origin::signed(1),
@@ -642,4 +644,105 @@ mod tests {
             );
         });
     }
+
+    #[test]
+    fn should_pass_unvote() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_ok!(init());
+            assert_ok!(
+                Dao::new_proposal(
+                    Origin::signed(1),
+                    1,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    15,
+                    101
+                )
+            );
+            assert_ok!(Dao::unvote(1, 1))
+        });
+    }
+
+    #[test]
+    fn should_pass_vote() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_ok!(init());
+            assert_ok!(
+                Dao::new_proposal(
+                    Origin::signed(1),
+                    1,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    15,
+                    101
+                )
+            );
+            assert_ok!(Dao::vote(Origin::signed(1), 1, true));
+        });
+    }
+
+    #[test]
+    fn should_pass_verify_presupport() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_ok!(init());
+            assert_ok!(
+                Dao::new_proposal(
+                    Origin::signed(1),
+                    1,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    15,
+                    101
+                )
+            );
+            assert_ok!(Dao::vote(Origin::signed(1), 1, true));
+            assert_ok!(Dao::verify_presupport(1));
+        });
+    }
+
+    #[test]
+    fn should_pass_execute_proposal() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_ok!(init());
+            assert_ok!(
+                Dao::new_proposal(
+                    Origin::signed(1),
+                    1,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    15,
+                    101
+                )
+            );
+            assert_ok!(Dao::vote(Origin::signed(1), 1, true));
+            assert_ok!(Dao::verify_presupport(1));
+            Timestamp::set_timestamp(16);
+            assert_ok!(Dao::execute_proposal(Origin::signed(1), 1, "transaction_data".as_bytes().into()));
+        });
+    }
+
+    #[test]
+    fn should_pass_unblock_me() {
+        with_externalities(&mut new_test_ext(), || {
+            assert_ok!(init());
+            assert_ok!(
+                Dao::new_proposal(
+                    Origin::signed(1),
+                    1,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    15,
+                    101
+                )
+            );
+            assert_ok!(Dao::vote(Origin::signed(1), 1, true));
+            assert_ok!(Dao::unblock_me(Origin::signed(1)));
+        });
+    }
+
 }

@@ -1,7 +1,7 @@
 /// A special implementation of lockable ERC20 interface
 
 use rstd::prelude::Vec;
-use support::{ensure, Parameter, StorageMap, decl_module, decl_storage, decl_event, dispatch::Result};
+use support::{ensure, Parameter, StorageValue, StorageMap, decl_module, decl_storage, decl_event, dispatch::Result};
 use system::ensure_signed;
 use parity_codec::Codec;
 use runtime_primitives::traits::{As, SimpleArithmetic, Member, CheckedAdd, CheckedSub};
@@ -16,6 +16,7 @@ pub trait Trait: system::Trait {
 // This module's storage items.
 decl_storage! {
 	trait Store for Module<T: Trait> as LockableToken {
+        Init get(is_init): bool;
 		Balances get(balance_of): map T::AccountId => T::TokenBalance;
 		Allowances get(allowance): map (T::AccountId, T::AccountId) => T::TokenBalance;
 
@@ -91,8 +92,13 @@ decl_event!(
 // utility and private functions
 // if marked public, accessible by other modules
 impl<T: Trait> Module<T> {
-    pub fn init(owner: T::AccountId){
-        <Balances<T>>::insert(owner, Self::total_supply());
+    pub fn init(sender: T::AccountId) -> Result {
+        ensure!(Self::is_init() == false, "Token already initialized.");
+
+        <Balances<T>>::insert(sender, Self::total_supply());
+        <Init<T>>::put(true);
+
+        Ok(())
     }
 
     /// internal transfer function
