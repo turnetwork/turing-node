@@ -82,7 +82,6 @@ decl_module! {
 			<Allowances<T>>::insert((from.clone(), caller.clone()), new_allowance);
 
             Self::deposit_event(RawEvent::Approval(from.clone(), caller.clone(), value));
-
 			Self::transfer_impl(from, to, value)
         }
 	}
