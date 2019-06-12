@@ -1,6 +1,6 @@
 # contract_node
 
-A SRML-based Substrate node, ready for hacking.
+This is a DAO on Substrate inspired by [slockit/**DAO**](<https://github.com/slockit/DAO>)
 
 # Building
 
@@ -82,3 +82,4 @@ Additional CLI usage options are available and may be shown by running `cargo ru
 ```
 Settings > remote node/endpoint to connect to > Local Node (127.0.0.1:9944)
 ```
+
