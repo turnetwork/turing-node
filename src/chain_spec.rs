@@ -154,7 +154,6 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<
 			min_proposal_debate_period: weeks(2),
 			quorum_havling_period: weeks(25),
 			execute_proposal_period: days(10),
-			pre_support_time: days(2),
 			max_deposit_divisor: 100,
 		}),
 	}

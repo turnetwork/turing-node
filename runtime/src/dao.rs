@@ -33,9 +33,6 @@ pub struct Proposal<U, V, W, X> {
     // is taken from the msg.value of a new_proposal call.
     proposal_deposit: U,
     new_curator: bool,
-    // true if more tokens are in favour of the proposal than opposed to it at
-    // least `preSupportTime` before the voting deadline
-    pre_support: bool,
     yea: U,
     nay: U,
     creator: V,
@@ -57,7 +54,6 @@ decl_storage! {
         MinProposalDebatePeriod get(min_proposal_debate_period) config(): Option<T::Moment>;
         QuorumHavlingPeriod get(quorum_havling_period) config(): Option<T::Moment>;
         ExecuteProposalPeriod get(execute_proposal_period) config(): Option<T::Moment>;
-        PreSupportTime get(pre_support_time) config(): Option<T::Moment>;
         MaxDepositDivisor get(max_deposit_divisor) config(): Option<u32>;
         // DAO parameter end
 
@@ -160,7 +156,6 @@ decl_module! {
             proposal_hash,
             proposal_deposit: deposit,
             new_curator: false,
-            pre_support: false,
             yea: T::TokenBalance::sa(0),
             nay: T::TokenBalance::sa(0),
             creator: sender.clone(),
@@ -185,22 +180,19 @@ decl_module! {
 
     fn vote(origin, proposal_id: u64, supports_proposal: bool) -> Result{
         let sender = ensure_signed(origin)?;
+        ensure!(Self::blocked(sender.clone()) == 0
+               || Self::proposals(proposal_id).voting_deadline > Self::proposals(Self::blocked(sender.clone())).voting_deadline,
+               "This is blocked");
         Self::_unvote(sender.clone(), proposal_id)?;
 
         <Proposals<T>>::mutate(proposal_id, |p| {
+            <Blocked<T>>::insert(sender.clone(), proposal_id);
             if supports_proposal {
                 p.yea += <token::Module<T>>::balance_of(sender.clone());
                 <VoteYes<T>>::insert(sender.clone(), true);
             } else {
                 p.nay += <token::Module<T>>::balance_of(sender.clone());
                 <VoteNo<T>>::insert(sender.clone(), true);
-            }
-
-            if Self::blocked(sender.clone()) == 0
-            {
-                <Blocked<T>>::insert(sender.clone(), proposal_id);
-            } else if p.voting_deadline > Self::proposals(Self::blocked(sender.clone())).voting_deadline {
-                <Blocked<T>>::insert(sender.clone(), proposal_id);
             }
         });
 
@@ -213,56 +205,6 @@ decl_module! {
         Ok(())
     }
 
-    // fn unvote(origin, proposal_id: u64) -> Result{
-    //     let sender = ensure_signed(origin)?;
-    //     ensure!(<timestamp::Module<T>>::get() < Self::proposals(proposal_id).voting_deadline, "Already past voting deadling");
-    //     <Proposals<T>>::mutate(proposal_id, |p| {
-    //         if Self::vote_yes(sender.clone()) {
-    //             p.yea -= <token::Module<T>>::balance_of(sender.clone());
-    //             <VoteYes<T>>::insert(sender.clone(), false);
-    //         }
-
-    //         if Self::vote_no(sender.clone()) {
-    //             p.nay -= <token::Module<T>>::balance_of(sender.clone());
-    //             <VoteNo<T>>::insert(sender.clone(), false);
-    //         }
-    //     });
-
-    //     Ok(())
-    // }
-
-    // fn unvoteall(origin) -> Result{
-    //     let sender = ensure_signed(origin)?;
-    //     let mut i = 0;
-    //     let length = Self::voting_register_count(sender.clone());
-    //     while i < length {
-    //         let p = Self::proposals(Self::voting_register((sender.clone(), i)));
-    //         if <timestamp::Module<T>>::get() < p.voting_deadline
-    //         {
-    //             Self::_unvote(sender.clone(), i)?;
-    //         }
-    //         i = i + 1;
-    //     }
-
-    //     <VotingRegisterCount<T>>::insert(sender.clone(), 0);
-    //     <Blocked<T>>::insert(sender.clone(), 0);
-    //     Ok(())
-    // }
-
-    fn verify_presupport(proposal_id: u64) -> Result{
-        let pre_support_time = Self::pre_support_time().ok_or("pre_support_time not set?")?;
-        <Proposals<T>>::mutate(proposal_id, |p|{
-            if <timestamp::Module<T>>::get() < p.clone().voting_deadline - pre_support_time {
-                if p.yea > p.nay {
-                    p.pre_support = true;
-                } else {
-                    p.pre_support = false;
-                }
-            }
-        });
-        Ok(())
-    }
-
     fn execute_proposal(proposal_id: u64, transaction_data: Vec<u8>) -> Result{
         let execute_proposal_period = Self::execute_proposal_period().ok_or("execute_proposal_period not set?")?;
         let p = Self::proposals(proposal_id);
@@ -270,7 +212,7 @@ decl_module! {
         
         if p.open && now > p.voting_deadline.clone() + execute_proposal_period {
             Self::close_proposal(proposal_id)?;
-            ensure!(false,"Out of time now.");
+            ensure!(false,"The execution deadline has passed.");
         }
 
         ensure!(now >= p.voting_deadline, "It has not yet reached the voting deadline.");
@@ -286,17 +228,19 @@ decl_module! {
 
         let mut proposal_check = true;
         let actual_balance = Self::actual_balance();
-        if p.amount > actual_balance || p.pre_support == false {
+        if p.amount > actual_balance {
             proposal_check = false;
         }
         let quorum = p.yea;
+
         // Need improved
-        if transaction_data.len() >= 4 && quorum < Self::min_quorum(Self::actual_balance())
+        let min_quorum_divisor = Self::min_quorum_divisor().ok_or("min_quorum_divisor not set?")?;
+        if transaction_data.len() >= 4 && quorum < Self::min_quorum(min_quorum_divisor, actual_balance)
         {
             proposal_check = false;
         }
 
-        if quorum >= Self::min_quorum(p.amount) {
+        if quorum >= Self::min_quorum(min_quorum_divisor, p.amount) {
             <token::Module<T>>::unlock(p.creator.clone(), p.proposal_deposit, proposal_id)?;
             <LastTimeMinQuorumMet<T>>::put(now);
             if quorum > <token::Module<T>>::total_supply() / T::TokenBalance::sa(7) {
@@ -305,31 +249,31 @@ decl_module! {
         }
 
         <Proposals<T>>::mutate(proposal_id, |p|{
-            if quorum >= Self::min_quorum(p.amount) && p.yea > p.nay && proposal_check {
+            if quorum >= Self::min_quorum(min_quorum_divisor, p.amount) && p.yea > p.nay && proposal_check {
                 p.proposal_passed = true;
             }
         });
+        Self::close_proposal(proposal_id)?;
 
         <token::Module<T>>::lock(Self::curator().unwrap(), p.amount, proposal_id)?;
         <token::Module<T>>::unlock(p.recipient.clone(), p.amount, proposal_id)?;
         
-        Self::close_proposal(proposal_id)?;
         Self::deposit_event(RawEvent::ProposalTaillied(proposal_id, true, quorum));
 
         Ok(())
     }
 
-    fn change_proposal_deposit(origin, proposal_deposit: T::TokenBalance) -> Result{
+    fn change_min_proposal_deposit(origin, new_min_proposal_deposit: T::TokenBalance) -> Result{
         let sender = ensure_signed(origin)?;
         if sender != Self::curator().unwrap() {
             return Err("Only curator can change min_proposal_deposit");
         }
         let max_deposit_divisor = Self::max_deposit_divisor().ok_or("max_deposit_divisor not set?")?;
-        if sender != Self::curator().unwrap() || proposal_deposit > Self::actual_balance() / T::TokenBalance::sa(max_deposit_divisor.into())
+        if sender != Self::curator().unwrap() || new_min_proposal_deposit > Self::actual_balance() / T::TokenBalance::sa(max_deposit_divisor.into())
         {
             return Err("change_proposal_deposit failed");
         }
-        <MinProposalDeposit<T>>::put(proposal_deposit);
+        <MinProposalDeposit<T>>::put(new_min_proposal_deposit);
         Ok(())
     }
 
@@ -408,8 +352,7 @@ impl<T: Trait> Module<T> {
         balance - Self::sum_of_proposal_deposits()
     }
 
-    fn min_quorum(value: T::TokenBalance) -> T::TokenBalance {
-        let min_quorum_divisor = Self::min_quorum_divisor().unwrap();
+    fn min_quorum(min_quorum_divisor: u32, value: T::TokenBalance) -> T::TokenBalance {
         <token::Module<T>>::total_supply() / T::TokenBalance::sa(min_quorum_divisor.into()) + 
         (value * <token::Module<T>>::total_supply()) / (T::TokenBalance::sa(3) * Self::actual_balance())
     }
@@ -512,7 +455,6 @@ mod tests {
 			    min_proposal_debate_period: 14,
 			    quorum_havling_period: 175,
 			    execute_proposal_period: 10,
-			    pre_support_time: 2,
 			    max_deposit_divisor: 100,
             }
                 .build_storage()
@@ -540,7 +482,6 @@ mod tests {
             assert_eq!(Dao::min_proposal_debate_period().unwrap(), 14);
             assert_eq!(Dao::quorum_havling_period().unwrap(), 175);
             assert_eq!(Dao::execute_proposal_period().unwrap(), 10);
-            assert_eq!(Dao::pre_support_time().unwrap(), 2);
             assert_eq!(Dao::max_deposit_divisor().unwrap(), 100);
         });
     }
@@ -683,27 +624,6 @@ mod tests {
     }
 
     #[test]
-    fn should_pass_verify_presupport() {
-        with_externalities(&mut new_test_ext(), || {
-            assert_ok!(init());
-            assert_ok!(
-                Dao::new_proposal(
-                    Origin::signed(1),
-                    1,
-                    10,
-                    "description".as_bytes().into(),
-                    "transaction_data".as_bytes().into(),
-                    15,
-                    101
-                )
-            );
-            assert_ok!(Dao::vote(Origin::signed(1), 1, true));
-            assert_ok!(Dao::verify_presupport(1));
-            assert_eq!(Dao::proposals(1).pre_support, true);
-        });
-    }
-
-    #[test]
     fn should_pass_change_allowed_recipients(){
        with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
@@ -729,7 +649,6 @@ mod tests {
                 )
             );
             assert_ok!(Dao::vote(Origin::signed(1), 1, true));
-            assert_ok!(Dao::verify_presupport(1));
             Timestamp::set_timestamp(16);
             assert_ok!(Dao::execute_proposal(1, "transaction_data".as_bytes().into()));
             assert_eq!(Dao::proposals(1).proposal_passed, true);
