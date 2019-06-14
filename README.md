@@ -1,6 +1,6 @@
-# contract_node
+# turing_node
 
-This is a DAO on Substrate inspired by [slockit/**DAO**](<https://github.com/slockit/DAO>)
+This is a node at the runtime level where contract functionality is implemented. The DAO on Substrate inspired by [slockit/**DAO**](<https://github.com/slockit/DAO>).
 
 # Building
 
