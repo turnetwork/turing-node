@@ -72,14 +72,23 @@ Additional CLI usage options are available and may be shown by running `cargo ru
 ## Run Development Substrate Node
 
 ```bash
-./target/release/substratekitties --dev
+./target/release/turing-node --dev
 ```
+
+If you have run the node before, running `./target/release/turing-node purge-chain --dev` will ensure that you start a new node.
 
 # UI
 
 [Substrate Portal](https://polkadot.js.org/apps/)
 
 ```
-Settings > remote node/endpoint to connect to > Local Node (127.0.0.1:9944)
+Settings > General > remote node/endpoint to connect to > Local Node (127.0.0.1:9944)
+Settings > Developer > Manually enter your custom type definitions as valid JSON > 
+{
+  "TokenBalance": "u128",
+  "Bytes": "Vec<u8>",
+  "Moment": "u64",
+  "Balance_in_Token": "u128"
+}
 ```
 
