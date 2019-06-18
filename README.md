@@ -1,6 +1,6 @@
 # turing_node
 
-This is a node at the runtime level where contract functionality is implemented. The DAO on Substrate inspired by [slockit/**DAO**](<https://github.com/slockit/DAO>).
+A Parity Substrate node implementing Turnetwork. And the DAO on Substrate inspired by [slockit/**DAO**](<https://github.com/slockit/DAO>).
 
 # Building
 
