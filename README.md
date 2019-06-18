@@ -1,4 +1,4 @@
-# turing_node
+# turing-node
 
 A Parity Substrate node implementing Turnetwork. And the DAO on Substrate inspired by [slockit/**DAO**](<https://github.com/slockit/DAO>).
 
