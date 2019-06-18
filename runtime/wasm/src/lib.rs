@@ -2,4 +2,4 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use contract_node::*;
+pub use turing_node_runtime::*;

@@ -10,7 +10,6 @@ use runtime_primitives::traits::{As, SimpleArithmetic, Member, CheckedAdd, Check
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
     type TokenBalance: Parameter + Member + SimpleArithmetic + Codec + Default + Copy + As<usize> + As<u64>;
-                        //+ Mul<u128, Output = Self::TokenBalance>;
 }
 
 // This module's storage items.

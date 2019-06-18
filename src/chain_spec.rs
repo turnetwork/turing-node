@@ -1,7 +1,7 @@
 use primitives::{ed25519, sr25519, Pair};
-use contract_node::{
+use turing_node_runtime::{
 	AccountId, GenesisConfig, ConsensusConfig, TimestampConfig, BalancesConfig,
-	SudoConfig, IndicesConfig, ERC20Config, ERC721Config, DaoConfig, LockableTokenConfig
+	SudoConfig, IndicesConfig, ERC20Config, ERC721Config, LockableTokenConfig, DaoConfig
 };
 use substrate_service;
 
@@ -47,12 +47,7 @@ impl Alternative {
 				|| testnet_genesis(vec![
 					authority_key("Alice")
 				], vec![
-					account_key("Alice"),
-					account_key("Bob"),
-					account_key("Charlie"),
-					account_key("Dave"),
-					account_key("Eve"),
-					account_key("Ferdie"),
+					account_key("Alice")
 				],
 					account_key("Alice")
 				),
@@ -106,7 +101,7 @@ fn weeks(time: u64) -> u64{
 fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<AccountId>, root_key: AccountId) -> GenesisConfig {
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
-			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/contract_node_wasm.compact.wasm").to_vec(),
+			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/contract_node_runtime_wasm.compact.wasm").to_vec(),
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,

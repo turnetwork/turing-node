@@ -6,7 +6,7 @@
 #![recursion_limit="256"]
 
 #[cfg(feature = "std")]
-use serde_derive::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize};
 use parity_codec::{Encode, Decode};
 use rstd::prelude::*;
 #[cfg(feature = "std")]
@@ -94,11 +94,11 @@ pub mod opaque {
 
 /// This runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("contract_node"),
-	impl_name: create_runtime_str!("contract_node-node"),
+	spec_name: create_runtime_str!("contract-node"),
+	impl_name: create_runtime_str!("contract-node"),
 	authoring_version: 3,
-	spec_version: 3,
-	impl_version: 0,
+	spec_version: 4,
+	impl_version: 4,
 	apis: RUNTIME_API_VERSIONS,
 };
 
