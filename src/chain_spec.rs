@@ -101,7 +101,7 @@ fn weeks(time: u64) -> u64{
 fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<AccountId>, root_key: AccountId) -> GenesisConfig {
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
-			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/contract_node_runtime_wasm.compact.wasm").to_vec(),
+			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/turing_node_runtime_wasm.compact.wasm").to_vec(),
 			authorities: initial_authorities.clone(),
 		}),
 		system: None,

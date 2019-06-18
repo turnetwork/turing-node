@@ -74,7 +74,7 @@ name = 'turing-node'
 path = 'src/main.rs'
 
 [package]
-authors = ['Parity Technologies <admin@parity.io>']
+authors = ['JNhua <huajnan@foxmail.com']
 build = 'build.rs'
 edition = '2018'
 name = 'turing-node'
