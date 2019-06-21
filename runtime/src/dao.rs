@@ -144,7 +144,13 @@ decl_module! {
         <ProposalCount<T>>::put(count + 1);
 
         let voting_deadline = <timestamp::Module<T>>::get().checked_add(&debating_period).ok_or("Overflow when setting voting deadline.")?;
-        let proposal_hash = <T as system::Trait>::Hashing::hash(&(transaction_data));
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&amount.encode());
+        buf.extend_from_slice(&proposal_id.encode());
+        buf.extend_from_slice(&recipient.encode());
+        buf.extend_from_slice(&transaction_data); 
+        let proposal_hash = <T as system::Trait>::Hashing::hash(&buf[..]);
 
         let p = Proposal{
             recipient: recipient.clone(),
@@ -218,7 +224,15 @@ decl_module! {
         ensure!(now >= p.voting_deadline, "It has not yet reached the voting deadline.");
         ensure!(p.open, "Proposal not open");
         ensure!(!p.proposal_passed, "Proposal has already been passed");
-        ensure!(p.proposal_hash == <T as system::Trait>::Hashing::hash(&transaction_data), "Not match the proposal hash");
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&p.amount.encode());
+        buf.extend_from_slice(&proposal_id.encode());
+        buf.extend_from_slice(&p.recipient.encode());
+        buf.extend_from_slice(&transaction_data); 
+        let proposal_hash = <T as system::Trait>::Hashing::hash(&buf[..]);
+
+        ensure!(p.proposal_hash == proposal_hash, "Not match the proposal hash");
 
         if !Self::allowed_recipients(p.recipient.clone()) {
             Self::close_proposal(proposal_id)?;
