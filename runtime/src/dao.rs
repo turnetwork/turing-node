@@ -1,6 +1,6 @@
 /// A simple implementation of the DAO.
 
-use crate::lockabletoken as token;
+use crate::daotoken as token;
 use parity_codec::{Encode, Decode};
 use rstd::prelude::*;
 use runtime_primitives::traits::{As, CheckedAdd, CheckedSub, Hash};

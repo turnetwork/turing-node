@@ -1,7 +1,7 @@
 use primitives::{ed25519, sr25519, Pair};
 use turing_node_runtime::{
 	AccountId, GenesisConfig, ConsensusConfig, TimestampConfig, BalancesConfig,
-	SudoConfig, IndicesConfig, ERC20Config, ERC721Config, LockableTokenConfig, DaoConfig
+	SudoConfig, IndicesConfig, ERC20Config, ERC721Config, DaoTokenConfig, DaoConfig
 };
 use substrate_service;
 
@@ -135,7 +135,7 @@ fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<
 			name: "ABMatrix ERC721 Token".as_bytes().into(),
 			symbol: "ABT721".as_bytes().into(),
 		}),
-		lockabletoken: Some(LockableTokenConfig{
+		daotoken: Some(DaoTokenConfig{
 			total_supply: 21000000,
 			name: "ABMatrix Token".as_bytes().into(),
 			symbol: "ABT".as_bytes().into(),

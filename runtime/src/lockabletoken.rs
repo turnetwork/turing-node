@@ -1,9 +1,7 @@
-/// A special implementation of lockable ERC20 interface
-
 use rstd::prelude::Vec;
-use support::{ensure, Parameter, StorageValue, StorageMap, decl_module, decl_storage, decl_event, dispatch::Result};
+use support::{ensure, Parameter, StorageMap, decl_module, decl_storage, decl_event, dispatch::Result};
 use system::ensure_signed;
-use parity_codec::Codec;
+use parity_codec::{Codec, Encode, Decode};
 use runtime_primitives::traits::{As, SimpleArithmetic, Member, CheckedAdd, CheckedSub};
 
 /// The module's configuration trait.
@@ -12,22 +10,26 @@ pub trait Trait: system::Trait {
     type TokenBalance: Parameter + Member + SimpleArithmetic + Codec + Default + Copy + As<usize> + As<u64>;
 }
 
+// struct to store the token details
+#[derive(Encode, Decode, Default, Clone, PartialEq, Debug)]
+pub struct Token<TokenBalance> {
+    name: Vec<u8>,
+    symbol: Vec<u8>,
+    total_supply: TokenBalance,
+    decimal: u32,
+}
+ 
 // This module's storage items.
 decl_storage! {
 	trait Store for Module<T: Trait> as LockableToken {
-        Init get(is_init): bool;
-		Balances get(balance_of): map T::AccountId => T::TokenBalance;
-		Allowances get(allowance): map (T::AccountId, T::AccountId) => T::TokenBalance;
-
-		Totalsupply get(total_supply) config(): T::TokenBalance;
-
-		// Optional
-		Name get(name) config(): Vec<u8>;
-		Symbol get(symbol) config(): Vec<u8>;
-		DecimalPlaces get(decimal) config(): u32;
+        Owners get(owners): map u32 => T::AccountId;
+        Tokens get(token_details): map u32 => Token<T::TokenBalance>;
+		Balances get(balance_of): map (u32, T::AccountId) => T::TokenBalance;
+		Allowances get(allowance): map (u32, T::AccountId, T::AccountId) => T::TokenBalance;
 
 		// special interface
-		LockedDeposits get(locked_deposits): map u64 => T::TokenBalance;
+		LockedTokens get(locked_tokens): map (u32, T::AccountId) => T::TokenBalance;
+        TotalLocked get(total_locked): map u32 => T::TokenBalance;
 	}
 }
 
@@ -39,41 +41,41 @@ decl_module! {
 		fn deposit_event<T>() = default;
 
 		/// Transfers token from the sender to the `to` address.
-		fn transfer(origin, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
+		fn transfer(origin, ico_id: u32, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
             let sender = ensure_signed(origin)?;
-            Self::transfer_impl(sender, to, value)
+            Self::transfer_impl(ico_id, sender, to, value)
         }
 
 		/// Approve the passed address to spend the specified amount of tokens on the behalf of the message's sender.
-        fn approve(origin, spender: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
+        fn approve(origin, ico_id: u32, spender: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
             let owner = ensure_signed(origin)?;
-			ensure!(<Balances<T>>::exists(&owner), "Account does not own this token");
+			ensure!(<Balances<T>>::exists((ico_id, owner.clone())), "Account does not own this token");
 
 			ensure!(spender != owner, "Owner is implicitly approved");
 
-            let allowance = Self::allowance((owner.clone(), spender.clone()));
+            let allowance = Self::allowance((ico_id, owner.clone(), spender.clone()));
 			let new_allowance = allowance.checked_add(&value).ok_or("overflow in adding allowance")?;
 
-			<Allowances<T>>::insert((owner.clone(), spender.clone()), new_allowance);
+			<Allowances<T>>::insert((ico_id, owner.clone(), spender.clone()), new_allowance);
 
 			Self::deposit_event(RawEvent::Approval(owner, spender, value));
             Ok(())
         }
 
         /// Transfer tokens from one address to another by allowance
-        fn transfer_from(origin, from: T::AccountId, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
+        fn transfer_from(origin, ico_id: u32, from: T::AccountId, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
             // Need to be authorized first
 			let caller = ensure_signed(origin)?;
-			ensure!(<Allowances<T>>::exists((from.clone(), caller.clone())), "Need to be approved first.");
-			let allowance = Self::allowance((from.clone(), caller.clone()));
+			ensure!(<Allowances<T>>::exists((ico_id, from.clone(), caller.clone())), "Need to be approved first.");
+			let allowance = Self::allowance((ico_id, from.clone(), caller.clone()));
 			ensure!(allowance >= value, "Not enough allowance.");
 
 			let new_allowance = allowance.checked_sub(&value).ok_or("underflow in subtracting allowance.")?;
-			<Allowances<T>>::insert((from.clone(), caller.clone()), new_allowance);
+			<Allowances<T>>::insert((ico_id, from.clone(), caller.clone()), new_allowance);
 
             Self::deposit_event(RawEvent::Approval(from.clone(), caller.clone(), value));
 
-			Self::transfer_impl(from, to, value)
+			Self::transfer_impl(ico_id, from, to, value)
         }
 	}
 }
@@ -91,62 +93,72 @@ decl_event!(
 // utility and private functions
 // if marked public, accessible by other modules
 impl<T: Trait> Module<T> {
-    pub fn init(sender: T::AccountId) -> Result {
-        ensure!(Self::is_init() == false, "Token already initialized.");
+    pub fn create_token(sender: T::AccountId, ico_id: u32, name: Vec<u8>, symbol: Vec<u8>, total_supply: T::TokenBalance, decimal: u32) -> Result {
+        let t = Token{
+            name,
+            symbol,
+            total_supply,
+            decimal,
+        };
 
-        <Balances<T>>::insert(sender, Self::total_supply());
-        <Init<T>>::put(true);
+        <Balances<T>>::insert((ico_id, sender.clone()), total_supply);
+        <Tokens<T>>::insert(ico_id, t);
+        <Owners<T>>::insert(ico_id, sender);
 
         Ok(())
     }
 
     /// internal transfer function
-    fn transfer_impl(
+    pub fn transfer_impl(
+        ico_id: u32,
         from: T::AccountId,
         to: T::AccountId,
         value: T::TokenBalance,
     ) -> Result {
-        ensure!(<Balances<T>>::exists(from.clone()), "Account does not own this token");
-        let balance_from = Self::balance_of(from.clone());
+        ensure!(<Balances<T>>::exists((ico_id, from.clone())), "Account does not own this token");
+        let balance_from = Self::balance_of((ico_id, from.clone()));
         ensure!(balance_from >= value, "Not enough balance.");
 
         // update the balances
         let new_balance_from = balance_from.checked_sub(&value).ok_or("underflow in subtracting balance")?;
-        let balance_to = Self::balance_of(to.clone());
+        let balance_to = Self::balance_of((ico_id, to.clone()));
         let new_balance_to = balance_to.checked_add(&value).ok_or("overflow in adding balance")?;
 
-        <Balances<T>>::insert(from.clone(), new_balance_from);
-        <Balances<T>>::insert(to.clone(), new_balance_to);
+        <Balances<T>>::insert((ico_id, from.clone()), new_balance_from);
+        <Balances<T>>::insert((ico_id, to.clone()), new_balance_to);
 
         Self::deposit_event(RawEvent::Transfer(from, to, value));
         Ok(())
     }
 
-    pub fn lock(from: T::AccountId, value: T::TokenBalance, proposal_id: u64) -> Result {
-        ensure!(<Balances<T>>::exists(from.clone()), "This account does not own this token");
+    pub fn lock(ico_id: u32, from: T::AccountId, value: T::TokenBalance) -> Result {
+        ensure!(<Balances<T>>::exists((ico_id, from.clone())), "This account does not own this token");
 
-        let balance_from = Self::balance_of(from.clone());
+        let balance_from = Self::balance_of((ico_id, from.clone()));
         ensure!(balance_from > value, "Not enough balance.");
         let updated_balance_from = balance_from.checked_sub(&value).ok_or("overflow in subtracting balance")?;
-        let deposit = Self::locked_deposits(proposal_id);
-        let updated_deposit = deposit.checked_add(&value).ok_or("overflow in adding deposit")?;
+        let total_lock = Self::total_locked(ico_id);
+        let updated_total_lock = total_lock.checked_add(&value).ok_or("overflow in adding deposit")?;
 
-        <Balances<T>>::insert(from, updated_balance_from);
-
-        <LockedDeposits<T>>::insert(proposal_id, updated_deposit);
+        <Balances<T>>::insert((ico_id, from.clone()), updated_balance_from);
+  
+        <LockedTokens<T>>::insert((ico_id, from), value);
+        <TotalLocked<T>>::insert(ico_id, updated_total_lock);
 
         Ok(())
     }
 
-    pub fn unlock(to: T::AccountId, value: T::TokenBalance, proposal_id: u64) -> Result {
-        let balance_to = Self::balance_of(to.clone());
-        let updated_balance_to = balance_to.checked_add(&value).ok_or("overflow in adding balance")?;
-        let deposit = Self::locked_deposits(proposal_id.clone());
-        let updated_deposit = deposit.checked_sub(&value).ok_or("overflow in subtracting deposit")?;
+    pub fn unlock(ico_id: u32, to: T::AccountId, value: Option<T::TokenBalance>) -> Result {
+        let balance_to = Self::balance_of((ico_id, to.clone()));
+        let tokens = Self::total_locked(ico_id);
+        let v = value.unwrap_or(Self::locked_tokens((ico_id, to.clone())));
 
-        <Balances<T>>::insert(to, updated_balance_to);
+        let updated_balance_to = balance_to.checked_add(&v).ok_or("overflow in adding balance")?;
+        let updated_tokens = tokens.checked_sub(&v).ok_or("overflow in subtracting deposit")?;
 
-        <LockedDeposits<T>>::insert(proposal_id, updated_deposit);
+        <LockedTokens<T>>::insert((ico_id, to.clone()), T::TokenBalance::sa(0));
+        <Balances<T>>::insert((ico_id, to), updated_balance_to);
+        <TotalLocked<T>>::insert(ico_id, updated_tokens);
 
         Ok(())
     }
