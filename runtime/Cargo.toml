@@ -26,6 +26,7 @@ std = [
     'contract/std',
     'democracy/std',
     'council/std',
+    'treasury/std',
 ]
 [dependencies.aura]
 default_features = false

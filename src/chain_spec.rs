@@ -1,6 +1,7 @@
 use primitives::{ed25519, sr25519, Pair};
 use turing_node_runtime::{AccountId, ConsensusConfig, SessionConfig, StakingConfig, StakerStatus, TimestampConfig, BalancesConfig,
-	SudoConfig, ContractsConfig, GrandpaConfig, IndicesConfig, Permill, Perbill, GenesisConfig, TreasuryConfig, DemocracyConfig};
+	SudoConfig, ContractConfig, GrandpaConfig, IndicesConfig, Permill, Perbill, GenesisConfig, TreasuryConfig, DemocracyConfig,
+	CouncilSeatsConfig, CouncilVotingConfig, ERC20Config, ERC721Config, DaoTokenConfig, DaoConfig};
 use substrate_service;
 
 use ed25519::Public as AuthorityId;
@@ -38,6 +39,15 @@ fn account_key(s: &str) -> AccountId {
 		.public()
 }
 
+/// Helper function to generate stash, controller and session key from seed
+pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, AuthorityId) {
+	(
+		account_key(&format!("{}//stash", seed)),
+		account_key(seed),
+		authority_key(seed)
+	)
+}
+
 impl Alternative {
 	/// Get an actual chain config from one of the alternatives.
 	pub(crate) fn load(self) -> Result<ChainSpec, String> {
@@ -46,7 +56,7 @@ impl Alternative {
 				"Development",
 				"dev",
 				|| testnet_genesis(vec![
-					authority_key("Alice")
+					get_authority_keys_from_seed("Alice")
 				], vec![
 					account_key("Alice")
 				],
@@ -62,8 +72,8 @@ impl Alternative {
 				"Local Testnet",
 				"local_testnet",
 				|| testnet_genesis(vec![
-					authority_key("Alice"),
-					authority_key("Bob"),
+					get_authority_keys_from_seed("Alice"),
+					get_authority_keys_from_seed("Bob"),
 				], vec![
 					account_key("Alice"),
 					account_key("Bob"),
@@ -82,12 +92,11 @@ impl Alternative {
 			),
 			Alternative::TuringTestnet => ChainSpec::from_genesis(
 				"Turing Testnet v0.1.0", 
-				"Turing Testnet", 
+				"turing", 
 				|| testnet_genesis(vec![
-					authority_key("Alice"),
-					authority_key("Bob"),
-					authority_key("Charlie"),
-					authority_key("Hjn"),
+					get_authority_keys_from_seed("Alice"),
+					get_authority_keys_from_seed("Bob"),
+					get_authority_keys_from_seed("Hjn"),
 				], vec![
 					account_key("Alice"),
 					account_key("Bob"),
@@ -130,17 +139,17 @@ const WEEKS: u64 = DAYS * 7;
 
 const STASH: u128 = 100 * DOLLARS;
 
-fn testnet_genesis(initial_authorities: Vec<AuthorityId>, endowed_accounts: Vec<AccountId>, root_key: AccountId) -> GenesisConfig {
+fn testnet_genesis(initial_authorities: Vec<(AccountId, AccountId, AuthorityId)>, endowed_accounts: Vec<AccountId>, root_key: AccountId) -> GenesisConfig {
 	GenesisConfig {
 		consensus: Some(ConsensusConfig {
-			code: include_bytes!("../../runtime/wasm/target/wasm32-unknown-unknown/release/turing_node_runtime.compact.wasm").to_vec(),
+			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/turing_node_runtime_wasm.compact.wasm").to_vec(),
 			authorities: initial_authorities.iter().map(|x| x.2.clone()).collect(),
 		}),
 		system: None,
 		balances: Some(BalancesConfig {
 			transaction_base_fee: 1 * CENTS,
 			transaction_byte_fee: 10 * MILLICENTS,
-			balances: endowed_accounts.iter().cloned().map(|k|(k, 1 << 60)).collect(),
+			balances: endowed_accounts.iter().cloned().map(|k|(k.clone(), 1 << 60)).collect(),
 			existential_deposit: 1 * DOLLARS,
 			transfer_fee: 1 * CENTS,
 			creation_fee: 1 * CENTS,
