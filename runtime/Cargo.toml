@@ -11,7 +11,6 @@ std = [
     'executive/std',
     'aura/std',
     'indices/std',
-    'primitives/std',
     'system/std',
     'timestamp/std',
     'sudo/std',
@@ -20,6 +19,13 @@ std = [
     'safe-mix/std',
     'consensus-aura/std',
     'offchain-primitives/std',
+    'consensus_authorities/std',
+    'staking/std',
+    'session/std',
+    'grandpa/std',
+    'contract/std',
+    'democracy/std',
+    'council/std',
 ]
 [dependencies.aura]
 default_features = false
@@ -137,10 +143,58 @@ git = 'https://github.com/paritytech/substrate.git'
 package = 'srml-timestamp'
 rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
 
+[dependencies.staking]
+default_features = false
+git = 'https://github.com/paritytech/substrate.git'
+package = 'srml-staking'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
 [dependencies.version]
 default_features = false
 git = 'https://github.com/paritytech/substrate.git'
 package = 'sr-version'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
+[dependencies.contract]
+default_features = false
+git = 'https://github.com/paritytech/substrate.git'
+package = 'srml-contract'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
+[dependencies.grandpa]
+default_features = false
+git = 'https://github.com/paritytech/substrate.git'
+package = 'srml-grandpa'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
+[dependencies.treasury]
+default_features = false
+git = 'https://github.com/paritytech/substrate.git'
+package = 'srml-treasury'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
+[dependencies.session]
+default_features = false
+git = 'https://github.com/paritytech/substrate.git'
+package = 'srml-session'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
+[dependencies.council]
+default_features = false
+git = 'https://github.com/paritytech/substrate.git'
+package = 'srml-council'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
+[dependencies.finality-tracker]
+default_features = false
+git = 'https://github.com/paritytech/substrate.git'
+package = 'srml-finality-tracker'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
+[dependencies.democracy]
+default_features = false
+git = 'https://github.com/paritytech/substrate.git'
+package = 'srml-democracy'
 rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
 
 [package]

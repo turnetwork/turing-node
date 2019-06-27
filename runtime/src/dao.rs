@@ -123,7 +123,7 @@ decl_module! {
     ) -> Result{
         let sender = ensure_signed(origin)?;
         ensure!(<token::Module<T>>::balance_of(sender.clone()) > T::TokenBalance::sa(0), "This account doesn't hold the token");
-
+   
         ensure!(Self::allowed_recipients(recipient.clone()), "The recipient is not in whitelist");
             
         let min_proposal_debate_period  = Self::min_proposal_debate_period().ok_or("MinProposalDebatePeriod not set.")?;

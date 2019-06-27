@@ -30,7 +30,7 @@ pub struct Crowdsale<AccountId, TokenBalance, Moment> {
 const PAY_ID: [u8; 8] = *b"exchange";
 
 decl_storage! {
-	trait Store for Module<T: Trait> as DaoToken {
+	trait Store for Module<T: Trait> as Ico {
         Crowdsales get(crowdsales) : map u32 => Crowdsale<T::AccountId, T::TokenBalance, T::Moment>;
         CrowdsaleCount get(crowdsale_count) : u32 = 0;
     }
@@ -40,7 +40,6 @@ decl_storage! {
 decl_event!(
     pub enum Event<T> where AccountId = <T as system::Trait>::AccountId,
         TokenBalance = <T as token::Trait>::TokenBalance,
-        Balance = <<T as Trait>::Currency as support::traits::Currency<<T as system::Trait>::AccountId>>::Balance,
     {
         CreateCrowdsale(u32, AccountId),
         // crowdsale_id, recipient, totalAmountRaised
@@ -49,7 +48,8 @@ decl_event!(
         FundUnlock(u32, AccountId, Option<TokenBalance>),
         FundLock(u32, AccountId, TokenBalance),
 
-        PayToken(u32, AccountId, Balance),
+        PayToken(u32, AccountId, TokenBalance),
+        Withdraw(u32, AccountId, TokenBalance),
     }
 );
 
@@ -57,8 +57,7 @@ decl_module! {
   pub struct Module<T: Trait> for enum Call where origin: T::Origin {
     // initialize events for this module
     fn deposit_event<T>() = default;
-    
-    // TODO: set deposit invoid being attacked
+
     pub fn create_crowdsale(
         origin,
         if_successful_send_to: T::AccountId,
@@ -70,6 +69,7 @@ decl_module! {
         token_total_supply: T::TokenBalance,
         token_decimal: u32) -> Result {
             let sender = ensure_signed(origin)?;
+            
             let c = Crowdsale{
                 beneficiary: if_successful_send_to,
                 funding_goal: funding_goal_in_turs,
@@ -79,21 +79,21 @@ decl_module! {
                 crowdsale_closed: false,
                 price
             };
+ 
+        let id = Self::crowdsale_count();
+        <Crowdsales<T>>::insert(id, c);
+        <CrowdsaleCount<T>>::mutate(|i| *i += 1);
 
-            let id = Self::crowdsale_count();
-            <Crowdsales<T>>::insert(id, c);
-            <CrowdsaleCount<T>>::mutate(|i| *i += 1);
+        let create_token_result = <token::Module<T>>::create_token(sender.clone(), id, token_name, token_symbol, token_total_supply, token_decimal);
+        if create_token_result.is_ok() {
+            Self::deposit_event(RawEvent::CreateCrowdsale(id, sender));
+        } 
 
-            let create_token_result = <token::Module<T>>::create_token(sender.clone(), id, token_name, token_symbol, token_total_supply, token_decimal);
-            if create_token_result.is_ok() {
-                Self::deposit_event(RawEvent::CreateCrowdsale(id, sender));
-            } 
-
-            create_token_result
+        create_token_result
     }
 
-    // TODO: exchange balance to tokens
-    pub fn pay(origin, crowdsale_id: u32, value: T::TokenBalance) -> Result{
+    /// exchange balance to tokens
+    fn pay(origin, crowdsale_id: u32, value: T::TokenBalance) -> Result{
         let sender = ensure_signed(origin)?;
 
         let c = Self::crowdsales(crowdsale_id);
@@ -116,13 +116,13 @@ decl_module! {
         let tranfer_impl_result = <token::Module<T>>::transfer_impl(crowdsale_id, owner, sender.clone(), value / T::TokenBalance::sa(c.price.into()));
         
         if tranfer_impl_result.is_ok(){
-            Self::deposit_event(RawEvent::PayToken(crowdsale_id, sender, value_to_tokenbalance));
+            Self::deposit_event(RawEvent::PayToken(crowdsale_id, sender, value));
         }
 
         Ok(())
     }
 
-    pub fn invest(origin, crowdsale_id: u32, amount: T::TokenBalance) -> Result {
+    fn invest(origin, crowdsale_id: u32, amount: T::TokenBalance) -> Result {
         let sender = ensure_signed(origin)?;
 
         let mut c = Self::crowdsales(crowdsale_id);
@@ -140,25 +140,11 @@ decl_module! {
         lock_result
     }
 
-    pub fn check_goal_reached(crowdsale_id: u32) -> Result {
-        let mut c = Self::crowdsales(crowdsale_id);
-        ensure!(<timestamp::Module<T>>::get() >= c.deadline, "It's not the deadline yet");
-
-        if c.amount_raised >= c.funding_goal {
-            c.funding_goal_reached = true;
-            Self::deposit_event(RawEvent::GoalReached(crowdsale_id, c.clone().beneficiary, c.clone().amount_raised));
-        }
-
-        c.crowdsale_closed = true;
-        <Crowdsales<T>>::insert(crowdsale_id, c);
-
-        Ok(())
-    }
-
-    pub fn distribute(origin, crowdsale_id: u32) -> Result {
-        let c = Self::crowdsales(crowdsale_id);
+    fn distribute(origin, crowdsale_id: u32) -> Result {
         let sender = ensure_signed(origin)?;
+        ensure!(Self::check_goal_reached(crowdsale_id).is_ok(), "check goal reached failed");
 
+        let c = Self::crowdsales(crowdsale_id);
         if !c.funding_goal_reached {
             if <token::Module<T>>::unlock(crowdsale_id, sender.clone(), None).is_ok() {
                 Self::deposit_event(RawEvent::FundUnlock(crowdsale_id, sender.clone(), None));
@@ -173,7 +159,52 @@ decl_module! {
 
         Ok(())
     }
+
+    fn withdraw(origin, crowdsale_id: u32) -> Result {
+        let sender = ensure_signed(origin)?;
+
+        let c = Self::crowdsales(crowdsale_id);
+        ensure!(c.crowdsale_closed, "crowsale has not been closed");
+
+        let owner = <token::Module<T>>::owners(crowdsale_id);
+        let tranfer_impl_result = <token::Module<T>>::transfer_impl(
+            crowdsale_id, 
+            sender.clone(), 
+            owner, 
+            <token::Module<T>>::balance_of((crowdsale_id, sender.clone())) / T::TokenBalance::sa(c.price.into())
+            );
+        if tranfer_impl_result.is_ok(){
+            Self::deposit_event(RawEvent::Withdraw(crowdsale_id, sender.clone(), <token::Module<T>>::balance_of((crowdsale_id, sender.clone()))));
+        }
+
+        T::Currency::remove_lock(
+            PAY_ID,
+            &sender
+        );
+
+        Ok(())
+    }
   }
+}
+
+impl<T: Trait> Module<T> {
+    fn check_goal_reached(crowdsale_id: u32) -> Result {
+        let mut c = Self::crowdsales(crowdsale_id);
+        if c.crowdsale_closed {
+            return Ok(())
+        }
+        ensure!(<timestamp::Module<T>>::get() >= c.deadline, "It's not the deadline yet");
+
+        if c.amount_raised >= c.funding_goal {
+            c.funding_goal_reached = true;
+            Self::deposit_event(RawEvent::GoalReached(crowdsale_id, c.clone().beneficiary, c.clone().amount_raised));
+        }
+
+        c.crowdsale_closed = true;
+        <Crowdsales<T>>::insert(crowdsale_id, c);
+
+        Ok(())
+    }
 }
 
 
