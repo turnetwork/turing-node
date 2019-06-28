@@ -199,7 +199,7 @@ package = 'srml-democracy'
 rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
 
 [package]
-authors = ['Parity Technologies <admin@parity.io>']
+authors = ['JNhua <huajnan@foxmail.com']
 edition = '2018'
 name = 'turing-node-runtime'
-version = '1.0.0'
+version = '0.1.0'

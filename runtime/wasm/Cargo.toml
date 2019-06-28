@@ -19,4 +19,4 @@ members = []
 authors = ['JNhua <huajnan@foxmail.com>']
 edition = '2018'
 name = 'turing-node-runtime-wasm'
-version = '1.0.0'
+version = '0.1.0'

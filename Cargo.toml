@@ -78,6 +78,6 @@ authors = ['JNhua <huajnan@foxmail.com']
 build = 'build.rs'
 edition = '2018'
 name = 'turing-node'
-version = '1.0.0'
+version = '0.1.0'
 [profile.release]
 panic = 'unwind'

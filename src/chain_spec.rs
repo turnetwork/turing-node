@@ -58,7 +58,8 @@ impl Alternative {
 				|| testnet_genesis(vec![
 					get_authority_keys_from_seed("Alice")
 				], vec![
-					account_key("Alice")
+					account_key("Alice"),
+					account_key("Alice//stash"),
 				],
 					account_key("Alice")
 				),
@@ -81,6 +82,12 @@ impl Alternative {
 					account_key("Dave"),
 					account_key("Eve"),
 					account_key("Ferdie"),
+					account_key("Alice//stash"),
+					account_key("Bob//stash"),
+					account_key("Charlie//stash"),
+					account_key("Dave//stash"),
+					account_key("Eve//stash"),
+					account_key("Ferdie//stash"),
 				],
 					account_key("Alice"),
 				),
@@ -105,6 +112,13 @@ impl Alternative {
 					account_key("Eve"),
 					account_key("Ferdie"),
 					account_key("Hjn"),
+					account_key("Alice//stash"),
+					account_key("Bob//stash"),
+					account_key("Charlie//stash"),
+					account_key("Dave//stash"),
+					account_key("Eve//stash"),
+					account_key("Ferdie//stash"),
+					account_key("Hjn//stash"),
 				],
 					account_key("Hjn"),
 				),

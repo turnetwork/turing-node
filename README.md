@@ -77,6 +77,42 @@ Additional CLI usage options are available and may be shown by running `cargo ru
 
 If you have run the node before, running `./target/release/turing-node purge-chain --dev` will ensure that you start a new node.
 
+## Run Turing Testnet Node
+
+```bash
+./target/release/turing-node \
+  --base-path /tmp/alice \
+  --chain=turing \
+  --alice \
+  --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
+  --telemetry-url ws://telemetry.polkadot.io:1024 \
+  --validator
+```
+
+```bash
+./target/release/turing-node \
+  --base-path /tmp/bob \
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/QmQZ8TjTqeDj3ciwr93EJ95hxfDsb9pEYDizUAbWpigtQN \
+  --chain=turing \
+  --bob \
+  --port 30334 \
+  --telemetry-url ws://telemetry.polkadot.io:1024 \
+  --validator
+```
+
+```bash
+./target/release/turing-node \
+  --base-path /tmp/charlie \
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/QmQZ8TjTqeDj3ciwr93EJ95hxfDsb9pEYDizUAbWpigtQN \
+  --chain=turing \
+  --charlie \
+  --port 30335 \
+  --telemetry-url ws://telemetry.polkadot.io:1024 \
+  --validator
+```
+
+
+
 # UI
 
 [Substrate Portal](https://polkadot.js.org/apps/)
