@@ -66,6 +66,21 @@ git = 'https://github.com/paritytech/substrate.git'
 package = 'substrate-transaction-pool'
 rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
 
+[dependencies.grandpa]
+git = 'https://github.com/paritytech/substrate.git'
+package = 'substrate-finality-grandpa'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
+[dependencies.keystore]
+git = 'https://github.com/paritytech/substrate.git'
+package = 'substrate-keystore'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
+[dependencies.telemetry]
+git = 'https://github.com/paritytech/substrate.git'
+package = 'substrate-telemetry'
+rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
+
 [build-dependencies]
 vergen = '3'
 

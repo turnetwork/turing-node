@@ -103,7 +103,6 @@ impl Alternative {
 				|| testnet_genesis(vec![
 					get_authority_keys_from_seed("Alice"),
 					get_authority_keys_from_seed("Bob"),
-					get_authority_keys_from_seed("Hjn"),
 				], vec![
 					account_key("Alice"),
 					account_key("Bob"),
@@ -111,23 +110,21 @@ impl Alternative {
 					account_key("Dave"),
 					account_key("Eve"),
 					account_key("Ferdie"),
-					account_key("Hjn"),
 					account_key("Alice//stash"),
 					account_key("Bob//stash"),
 					account_key("Charlie//stash"),
 					account_key("Dave//stash"),
 					account_key("Eve//stash"),
 					account_key("Ferdie//stash"),
-					account_key("Hjn//stash"),
 				],
-					account_key("Hjn"),
+					account_key("Alice"),
 				),
 				vec![],
 				None,
 				None,
 				None,
 				None
-				)
+			),
 		})
 	}
 
@@ -182,11 +179,11 @@ fn testnet_genesis(initial_authorities: Vec<(AccountId, AccountId, AuthorityId)>
 			offline_slash: Perbill::from_billionths(1_000_000),
 			session_reward: Perbill::from_billionths(2_065),
 			current_session_reward: 0,
-			validator_count: 7,
+			validator_count: 5,
 			sessions_per_era: 12,
 			bonding_duration: 60 * MINUTES,
 			offline_slash_grace: 4,
-			minimum_validator_count: 4,
+			minimum_validator_count: 2,
 			stakers: initial_authorities.iter().map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)).collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.1.clone()).collect(),
 		}),
