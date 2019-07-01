@@ -89,7 +89,7 @@ name = 'turing-node'
 path = 'src/main.rs'
 
 [package]
-authors = ['JNhua <huajnan@foxmail.com']
+authors = ['Turing Network <huajnan@foxmail.com']
 build = 'build.rs'
 edition = '2018'
 name = 'turing-node'

@@ -11,13 +11,13 @@ pub use substrate_cli::{VersionInfo, IntoExit, error};
 
 fn run() -> cli::error::Result<()> {
 	let version = VersionInfo {
-		name: "Substrate Node",
+		name: "Turnetwork Node",
 		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
 		executable_name: "turing-node",
-		author: "JNhua",
-		description: "turing-node",
-		support_url: "support.anonymous.an",
+		author: "Turing Network",
+		description: "A Parity Substrate node implementing Turnetwork.",
+		support_url: "https://github.com/turnetwork/turing-node/issues/new",
 	};
 	cli::run(::std::env::args(), cli::Exit, version)
 }

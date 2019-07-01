@@ -8,7 +8,7 @@
 # vscode
 .vscode
 # jetbrains ide stuff
-.idea
+.idea/
 *.iml
 # mac stuff
 .DS_Store
