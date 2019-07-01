@@ -13,3 +13,8 @@
 # mac stuff
 .DS_Store
 
+# test data
+alice
+bob
+charlie
+dave
