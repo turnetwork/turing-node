@@ -85,10 +85,6 @@ impl Alternative {
 					account_key("Ferdie"),
 					account_key("Alice//stash"),
 					account_key("Bob//stash"),
-					account_key("Charlie//stash"),
-					account_key("Dave//stash"),
-					account_key("Eve//stash"),
-					account_key("Ferdie//stash"),
 				],
 					account_key("Alice"),
 				),
@@ -390,7 +386,6 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
 			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
 		}),
 		erc20: Some(ERC20Config {
-			// set Alice as owner
 			owner: endowed_accounts[0].clone(),
 			total_supply: 21000000,
 			name: "ABMatrix ERC20 Token".as_bytes().into(),
@@ -408,7 +403,6 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
 			decimal: 18,
 		}),
 		dao: Some(DaoConfig {
-			// set Alice as curator
 			curator: endowed_accounts[0].clone(),
 			min_proposal_deposit: 100,
 			min_quorum_divisor: 7,
