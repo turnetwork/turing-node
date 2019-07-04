@@ -32,6 +32,7 @@ decl_storage! {
 		Decimal get(decimal) : u16 = 18;
 		Totalsupply get(total_supply) config() : T::TokenBalance;
 		Controllable get(is_controllable): bool = true;
+		IsController get(is_controller): map T::AccountId => bool;
 
 		// Mapping from tokenHolder to balance.
 		Balances get(balance_of): map T::AccountId => T::TokenBalance;
@@ -40,29 +41,55 @@ decl_storage! {
 		Controllers get(controllers): map u32 => T::AccountId;
 		ControllersCount get(controllers_count): u32;
 
-		// token_holder => operator		
-		AuthorizeOperator get(authorize_operator): map T::AccountId => T::AccountId;
+		// operator	=> token_holder	
+		AuthorizedOperator get(authorized_operator): map (T::AccountId, T::AccountId) => bool;
+
+		// optional
+		IsOperatorFor get(is_operator_for): map (T::AccountId, T::AccountId) => Option<bool>;
+		// TODO: certificate
 		
 		// ---ERC777 end---
 
-		// ERC1400
-		// TODO: what is this?
-		Granularity get(granularity): u128;
-
+		// ---ERC1410 begin---
 		// List of partitions.
 		TotalPartitions get(total_partitions): map u32 => Vec<u8>;
 		PartitionsCount get(partitions_count): u32;
 
-		Partitions get(partition_of): map T::AccountId => Vec<u8>;
+		// Mapping from partition to global balance of corresponding partition.
+		ToTalSupplyByPartition get(total_supply_by_partition): map Vec<u8> => T::TokenBalance;
 
-		Documents get(get_document): map Vec<u8> => Doc<T::Hash>;
+		// Mapping from tokenHolder to their partitions.
+		PartitionsOf get(partitions_of): map T::AccountId => Vec<u8>;
 
+		// Mapping from (tokenHolder, partition) to balance of corresponding partition.
 		BalancesPartition get(balance_of_by_partition): map (Vec<u8>, T::AccountId) => T::TokenBalance;
 		
-		RevokeOperator get(revoke_operator): T::AccountId;
+		// Mapping from tokenHolder to their default partitions (for ERC777 and ERC20 compatibility).
+		DefaultPartitionsOf get(default_partitions_of): map T::AccountId => Vec<u8>;
+
+		// List of token default partitions (for ERC20 compatibility).
+		TokenDefaultPartitions get(token_default_partitions): Vec<u8>;
+		
+		// Mapping from (tokenHolder, partition, operator) to 'approved for partition' status. [TOKEN-HOLDER-SPECIFIC]
+		AuthorizedOperatorByPartition get(authorized_operator_by_partition): map (T::AccountId, Vec<u8>, T::AccountId) => bool;
+		
+		// Mapping from partition to controllers for the partition. [NOT TOKEN-HOLDER-SPECIFIC]
+		ControllersByPartition get(controllers_by_partition): map Vec<u8> => u32;
+		
+		// Mapping from (partition, operator) to PartitionController status. [NOT TOKEN-HOLDER-SPECIFIC]
+		IsControllerByPartition get(is_controller_by_partition): map (Vec<u8>, T::AccountId) => bool;
+		// ---ERC1410 end---
+
+		// ---ERC1400 begin---
+		// TODO: what is this?
+		Granularity get(granularity): u128;
+
+		Documents get(get_document): map Vec<u8> => Doc<T::Hash>;
+		Issuable get(is_issuable): bool = true;
+		
 		Operator get(operator): map (T::AccountId, T::AccountId) => bool;
 		OperatorForPartition get(operator_for_partition): map (Vec<u8>, T::AccountId, T::AccountId) => bool;
-		Issuable get(is_issuable): bool = true;
+		// ---ERC1400 end---
 	}
 
 	add_extra_genesis {
@@ -118,12 +145,34 @@ decl_module! {
 			Self::transfer_impl(from, to, value)
         }
 
-		// ERC1400 begin
-		fn set_document(name: Vec<u8>, uri: Vec<u8>, document_hash: T::Hash) -> Result {
+		// ---ERC777 begin---
+		fn authorize_operator(origin, operator: T::AccountId) -> Result {
+			let sender = ensure_signed(origin)?;
+			<AuthorizedOperator<T>>::insert((operator.clone(), sender.clone()), true);
+			Self::deposit_event(RawEvent::AuthorizedOperator(operator, sender));
 			Ok(())
 		}
 
+		fn revoke_operator(origin, operator: T::AccountId) -> Result {
+			let sender = ensure_signed(origin)?;
+			<AuthorizedOperator<T>>::insert((operator.clone(), sender.clone()), false);
+			Self::deposit_event(RawEvent::RevokedOperator(operator, sender));
+			Ok(())
+		}
+
+		fn check_operator_for(operator: T::AccountId, token_holder: T::AccountId) -> Result {
+			let result = Self::is_operator_for((operator.clone(), token_holder.clone()));
+			if result == None {
+				let is_for = Self::_is_operator_for(operator.clone(), token_holder.clone());
+				<IsOperatorFor<T>>::insert((operator, token_holder), Some(is_for));
+			}
+			Ok(())
+		}
+		
+		// TODO: isValidCertificate(data)?
 		fn transfer_with_data(origin, to: T::AccountId, #[compact] value: T::TokenBalance, data: Vec<u8>) -> Result{
+			let sender = ensure_signed(origin)?;
+			Self::_transfer_with_data("", sender.clone(), sender, to, value, data, "", true);
 			Ok(())
 		}
 
@@ -137,6 +186,18 @@ decl_module! {
 			Ok(())
 		}
 
+		fn redeem(origin, value: TokenBalance, data: Vec<u8>) -> Result {
+			let sender = ensure_signed(origin)?;
+			_redeem("", sender.clone(), sender, value, data, "")
+		}
+
+		fn redeem_from(token_holder: T::AccountId, value: T::TokenBalance, data: Vec<u8>) -> Result {
+			Ok(())
+		}
+
+		// ---ERC777 end---
+
+		// ---ERC1410 begin---
 		fn transfer_by_partition(
 			partition: Vec<u8>, 
 			to: T::AccountId, 
@@ -153,6 +214,41 @@ decl_module! {
 			data: Vec<u8>,
 			operator_data: Vec<u8>
 		) -> Result {
+			Ok(())
+		}
+
+		fn set_default_partitons(partitons: Vec<u8>) -> Result {
+			Ok(())
+		}
+
+		fn can_transfer_by_partition(
+			from: T::AccountId,
+			to: T::AccountId,
+			partition: Vec<u8>,
+			value: T::TokenBalance,
+			data: Vec<u8>
+		) -> Result {
+			Ok(())
+		}
+
+		fn authorize_operator_by_partition(partition: Vec<u8>, operator: T::AccountId) -> Result {
+			Ok(())
+		}
+
+		fn revoke_operator_by_partition(partition: Vec<u8>, operator: T::AccountId) -> Result {
+			Ok(())
+		}
+
+		// ---ERC1410 end---
+
+		// ---ERC1400 begin---
+		fn set_document(name: Vec<u8>, uri: Vec<u8>, document_hash: T::Hash) -> Result {
+			let d = Doc{
+				docURI: uri,
+				docHash: document_hash,
+			};
+			<Documents<T>>::insert(name, d);
+			Self::deposit_event(RawEvent::Document(name, uri, document_hash));
 			Ok(())
 		}
 
@@ -175,27 +271,11 @@ decl_module! {
 			Ok(())
 		}
 
-		fn authorize_operator_by_partition(partition: Vec<u8>, operator: T::AccountId) -> Result {
-			Ok(())
-		}
-
-		fn revoke_operator_by_partition(partition: Vec<u8>, operator: T::AccountId) -> Result {
-			Ok(())
-		}
-
 		fn issue(token_holder: T::AccountId, value: T::TokenBalance, data: Vec<u8>) -> Result {
 			Ok(())
 		}
 
 		fn issue_by_partition(partition: Vec<u8>, token_holder: T::AccountId, value: T::TokenBalance, data: Vec<u8>) -> Result {
-			Ok(())
-		}
-
-		fn redeem(value: TokenBalance, data: Vec<u8>) -> Result {
-			Ok(())
-		}
-
-		fn redeem_from(token_holder: T::AccountId, value: T::TokenBalance, data: Vec<u8>) -> Result {
 			Ok(())
 		}
 
@@ -228,17 +308,28 @@ decl_module! {
 		) -> Result {
 			Ok(())
 		}
-
-		fn can_transfer_by_partition(
-			from: T::AccountId,
-			to: T::AccountId,
-			partition: Vec<u8>,
-			value: T::TokenBalance,
-			data: Vec<u8>
-		) -> Result {
-			Ok(())
-		}
 		// ERC1400 end
+
+/**
+ * Reason codes - ERC1066
+ *
+ * To improve the token holder experience, canTransfer MUST return a reason byte code
+ * on success or failure based on the EIP-1066 application-specific status codes specified below.
+ * An implementation can also return arbitrary data as a bytes32 to provide additional
+ * information not captured by the reason code.
+ *
+ * Code	Reason
+ * 0xA0	Transfer Verified - Unrestricted
+ * 0xA1	Transfer Verified - On-Chain approval for restricted token
+ * 0xA2	Transfer Verified - Off-Chain approval for restricted token
+ * 0xA3	Transfer Blocked - Sender lockup period not ended
+ * 0xA4	Transfer Blocked - Sender balance insufficient
+ * 0xA5	Transfer Blocked - Sender not eligible
+ * 0xA6	Transfer Blocked - Receiver not eligible
+ * 0xA7	Transfer Blocked - Identity restriction
+ * 0xA8	Transfer Blocked - Token restriction
+ * 0xA9	Transfer Blocked - Token granularity
+ */
 	}
 }
 
@@ -260,6 +351,16 @@ decl_event!(
 		
 		// name, uri, document_hash
 		Document(string, string, Hash),
+
+		// operator, from, to, value, data, operator_data
+		TransferWithData(
+			AccountId,
+			AccountId,
+			AccountId,
+			Balance,
+			Vec<u8>,
+			Vec<u8>
+		), 
 
 		// fromPartition, operator, from, to, value, data, operatorData
 		TransferByPartition(
@@ -323,5 +424,65 @@ impl<T: Trait> Module<T> {
         Ok(())
     }
 
-	
+	// ---ERC777 begin---
+	fn _is_operator_for(operator: T::AccountId, token_holder: T::AccountId) -> bool {
+		operator == token_holder
+		|| authorized_operator((operator, token_holder))
+		|| (is_controllable() && is_controller(operator))
+	}
+
+	fn _transfer_with_data(
+		partition: Vec<u8>,
+		operator: T::AccountId,
+		from: T::AccountId,
+		to: T::AccountId,
+		value: T::TokenBalance,
+		data: Vec<u8>,
+		operator_data: Vec<u8>,
+		prevent_locking: bool
+	) -> Result {
+		ensure!(<Balances<T>>::exists(from.clone()), "Account does not own this token");
+		ensure!(_is_multiple(value.clone()), "A9: Transfer Blocked - Token granularity");
+		// ensure!(to.clone() != T::AccountId::sa(0), "A6: Transfer Blocked - Receiver not eligible");
+		ensure!(Self::balance_of(from.clone()) >= value.clone(), "A4: Transfer Blocked - Sender balance insufficient");
+
+		_call_sender(partition.clone(), operator.clone(), from.clone(), to.clone(), value.clone(), data.clone(), operator_data.clone());
+
+		// update the balances
+        let balance_from = Self::balance_of(from.clone());
+        let new_balance_from = balance_from.checked_sub(&value).ok_or("underflow in subtracting balance")?;
+        let balance_to = Self::balance_of(to.clone());
+        let new_balance_to = balance_to.checked_add(&value).ok_or("overflow in adding balance")?;
+
+        <Balances<T>>::insert(from.clone(), new_balance_from);
+        <Balances<T>>::insert(to.clone(), new_balance_to);
+
+		Self::deposit_event(RawEvent::TransferWithData(operator, from, to, value, data, operator_data));
+	}
+
+	fn _redeem(
+		partition: Vec<u8>, 
+		operator: T::AccountId, 
+		from: T::AccountId, 
+		value: T::TokenBalance, 
+		data: Vec<u8>,
+		operator_data: Vec<u8>
+	) -> Result {
+		ensure!(_is_multiple(value.clone), "A9: Transfer Blocked - Token granularity");
+		//  "A5: Transfer Blocked - Sender not eligible" ?
+
+		let balance_from = Self::balance_of(from.clone());
+		ensure!(balance_from >= value.clone(), "A4: Transfer Blocked - Sender balance insufficient");
+
+		// callsender
+
+        let new_balance_from = balance_from.checked_sub(&value).ok_or("underflow in subtracting balance")?;
+        let total_supply = Self::total_supply();
+        let new_total_supply = total_supply.checked_sub(&value).ok_or("underflow in subtracting balance")?;
+        <Balances<T>>::insert(from.clone(), new_balance_from);
+		<TotalSupply<T>>::put(new_total_supply);
+
+		Self::deposit_event(RawEvent::Redeemed(operator, from, value, data, operator_data));
+		Ok(())
+	}
 }
