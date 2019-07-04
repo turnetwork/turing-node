@@ -1,5 +1,5 @@
 FROM ubuntu:18.04
-LABEL maintainer="huajnan@foxmail.com"
+LABEL maintainer="huajiannan@abmatrix.cn"
 LABEL description="This is a docker for turing node"
 
 WORKDIR /turing

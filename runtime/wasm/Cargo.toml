@@ -16,7 +16,7 @@ crate-type = ['cdylib']
 members = []
 
 [package]
-authors = ['Turing Network <huajnan@foxmail.com>']
+authors = ['Turing Network <huajiannan@abmatrix.cn>']
 edition = '2018'
 name = 'turing-node-runtime-wasm'
 version = '0.1.0'
