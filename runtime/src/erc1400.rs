@@ -73,11 +73,14 @@ decl_storage! {
 		// Mapping from (tokenHolder, partition, operator) to 'approved for partition' status. [TOKEN-HOLDER-SPECIFIC]
 		AuthorizedOperatorByPartition get(authorized_operator_by_partition): map (T::AccountId, Vec<u8>, T::AccountId) => bool;
 		
-		// Mapping from partition to controllers for the partition. [NOT TOKEN-HOLDER-SPECIFIC]
+		// Mapping from partition to controllers_id for the partition. [NOT TOKEN-HOLDER-SPECIFIC]
 		ControllersByPartition get(controllers_by_partition): map Vec<u8> => u32;
 		
 		// Mapping from (partition, operator) to PartitionController status. [NOT TOKEN-HOLDER-SPECIFIC]
 		IsControllerByPartition get(is_controller_by_partition): map (Vec<u8>, T::AccountId) => bool;
+		
+		// Mapping from (partition, operator, token_holder)
+		IsOperatorForPartition get(is_operator_for_partition): map (Vec<u8>, T::AccountId, T::AccountId) => Option<bool>;
 		// ---ERC1410 end---
 
 		// ---ERC1400 begin---
@@ -176,66 +179,90 @@ decl_module! {
 			Ok(())
 		}
 
+		// TODO: isValidCertificate(data)?
 		fn transfer_from_with_data(
 			origin, 
 			from: T::AccountId, 
 			to: T::AccountId, 
 			#[compact] value: T::TokenBalance, 
-			data: Vec<u8>
+			data: Vec<u8>,
+			operator_data: Vec<u8>
 		) -> Result {
+			let sender = ensure_signed(origin)?;
+			ensure!(_is_operator_for(sender.clone(), from.clone()), "A7: Transfer Blocked - Identity restriction");
+			Self::_transfer_with_data("", sender, from, to, value, data, operator_data, true);
 			Ok(())
 		}
 
+		// TODO: isValidCertificate(data)?
 		fn redeem(origin, value: TokenBalance, data: Vec<u8>) -> Result {
 			let sender = ensure_signed(origin)?;
-			_redeem("", sender.clone(), sender, value, data, "")
+			Self::_redeem("", sender.clone(), sender, value, data)
 		}
 
-		fn redeem_from(token_holder: T::AccountId, value: T::TokenBalance, data: Vec<u8>) -> Result {
-			Ok(())
+		// TODO: isValidCertificate(data)?
+		fn redeem_from(origin, token_holder: T::AccountId, value: T::TokenBalance, data: Vec<u8>) -> Result {
+			let sender = ensure_signed(origin)?;
+			ensure!(_is_operator_for(sender.clone(), from.clone()), "A7: Transfer Blocked - Identity restriction");
+			Self::_redeem("", sender, token_holder, value, data)
 		}
 
 		// ---ERC777 end---
 
 		// ---ERC1410 begin---
+		// TODO: isValidCertificate(data)?
 		fn transfer_by_partition(
+			origin,
 			partition: Vec<u8>, 
 			to: T::AccountId, 
 			#[compact] value: T::TokenBalance, 
 			data: Vec<u8>
 		) -> Result {
-			Ok(())
+			let sender = ensure_signed(origin)?;
+			Self::_transfer_by_partition(partition, sender.clone(), sender, to, value, data)
 		}
 
+		// TODO: isValidCertificate(operator_data)?
 		fn operator_transfer_by_partition(
+			origin,
 			partition: Vec<u8>, 
 			from: T::AccountId, 
 			to: T::AccountId, 
 			data: Vec<u8>,
 			operator_data: Vec<u8>
 		) -> Result {
+			let sender = ensure_signed(origin)?;
+			ensure!(_is_operator_for_partition(partition.clone(), sender.clone(), from.clone()), "A7: Transfer Blocked - Identity restriction");
+
+			Self::_transfer_by_partition(partition, sender, from, to, value, data, operator_data)
+		}
+
+		fn set_default_partitons(origin, partitons: Vec<u8>) -> Result {
+			let sender = ensure_signed(origin)?;
+			<DefaultPartitionsOf<T>>::insert(sender, partitons);
 			Ok(())
 		}
 
-		fn set_default_partitons(partitons: Vec<u8>) -> Result {
+		fn authorize_operator_by_partition(origin, partition: Vec<u8>, operator: T::AccountId) -> Result {
+			let sender = ensure_signed(origin)?;
+			<AuthorizedOperatorByPartition<T>>::insert((sender.clone(), partition.clone(), operator.clone()), true);
+			Self::deposit_event(RawEvent::AuthorizedOperatorByPartition(partition, operator, sender));
 			Ok(())
 		}
 
-		fn can_transfer_by_partition(
-			from: T::AccountId,
-			to: T::AccountId,
-			partition: Vec<u8>,
-			value: T::TokenBalance,
-			data: Vec<u8>
-		) -> Result {
+		fn revoke_operator_by_partition(origin, partition: Vec<u8>, operator: T::AccountId) -> Result {
+			let sender = ensure_signed(origin)?;
+			<AuthorizedOperatorByPartition<T>>::insert((sender.clone(), partition.clone(), operator.clone()), false);
+			Self::deposit_event(RawEvent::RevokedOperatorByPartition(partition, operator, sender));
 			Ok(())
 		}
 
-		fn authorize_operator_by_partition(partition: Vec<u8>, operator: T::AccountId) -> Result {
-			Ok(())
-		}
-
-		fn revoke_operator_by_partition(partition: Vec<u8>, operator: T::AccountId) -> Result {
+		fn check_operator_for_partition(partition: Vec<u8>, operator: T::AccountId, token_holder: T::AccountId) -> Result {
+			let result = Self::is_operator_for((partition.clone(), operator.clone(), token_holder.clone()));
+			if result == None {
+				let is_for = Self::_is_operator_for_partition(partition.clone(), operator.clone(), token_holder.clone());
+				<IsOperatorForPartition<T>>::insert((partition, operator, token_holder), Some(is_for));
+			}
 			Ok(())
 		}
 
@@ -300,10 +327,12 @@ decl_module! {
 			Ok(())
 		}
 
-		fn can_transfer_from(
+		// TODO: finish this fn
+		fn can_transfer_by_partition(
 			from: T::AccountId,
 			to: T::AccountId,
-			value: TokenBalance,
+			partition: Vec<u8>,
+			value: T::TokenBalance,
 			data: Vec<u8>
 		) -> Result {
 			Ok(())
@@ -446,7 +475,8 @@ impl<T: Trait> Module<T> {
 		// ensure!(to.clone() != T::AccountId::sa(0), "A6: Transfer Blocked - Receiver not eligible");
 		ensure!(Self::balance_of(from.clone()) >= value.clone(), "A4: Transfer Blocked - Sender balance insufficient");
 
-		_call_sender(partition.clone(), operator.clone(), from.clone(), to.clone(), value.clone(), data.clone(), operator_data.clone());
+		// TODO: call_sender
+		// _call_sender(partition.clone(), operator.clone(), from.clone(), to.clone(), value.clone(), data.clone(), operator_data.clone());
 
 		// update the balances
         let balance_from = Self::balance_of(from.clone());
@@ -457,6 +487,8 @@ impl<T: Trait> Module<T> {
         <Balances<T>>::insert(from.clone(), new_balance_from);
         <Balances<T>>::insert(to.clone(), new_balance_to);
 
+		// TODO: call_recipient
+
 		Self::deposit_event(RawEvent::TransferWithData(operator, from, to, value, data, operator_data));
 	}
 
@@ -465,8 +497,7 @@ impl<T: Trait> Module<T> {
 		operator: T::AccountId, 
 		from: T::AccountId, 
 		value: T::TokenBalance, 
-		data: Vec<u8>,
-		operator_data: Vec<u8>
+		data: Vec<u8>
 	) -> Result {
 		ensure!(_is_multiple(value.clone), "A9: Transfer Blocked - Token granularity");
 		//  "A5: Transfer Blocked - Sender not eligible" ?
@@ -474,7 +505,7 @@ impl<T: Trait> Module<T> {
 		let balance_from = Self::balance_of(from.clone());
 		ensure!(balance_from >= value.clone(), "A4: Transfer Blocked - Sender balance insufficient");
 
-		// callsender
+		// TODO: callsender
 
         let new_balance_from = balance_from.checked_sub(&value).ok_or("underflow in subtracting balance")?;
         let total_supply = Self::total_supply();
@@ -482,7 +513,83 @@ impl<T: Trait> Module<T> {
         <Balances<T>>::insert(from.clone(), new_balance_from);
 		<TotalSupply<T>>::put(new_total_supply);
 
-		Self::deposit_event(RawEvent::Redeemed(operator, from, value, data, operator_data));
+		Self::deposit_event(RawEvent::Redeemed(operator, from, value, data));
 		Ok(())
 	}
+	// ---ERC777 end---
+
+	// ---ERC1410 begin---
+	fn _transfer_by_partition(
+		partition: Vec<u8>,
+		operator: T::AccountId,
+		from: T::AccountId,
+		to: T::AccountId,
+		value: T::TokenBalance,
+		data: Vec<u8>,
+		operator_data: Vec<u8> 
+	) -> Result {
+		ensure!(balance_of_by_partition((from.clone(), partition.clone())) >= value.clone(), "A4: Transfer Blocked - Sender balance insufficient"); // ensure enough funds
+		let mut to_partition = partiton.clone();
+		if operator_data.len() != 0 && data.len() != 0 {
+			to_partition = Self::_get_destination_partition(partiton.clone(), data.clone());
+		}
+
+		Self::_remove_token_from_partition(from.clone(),  partition.clone(), value.clone());
+		Self::_transfer_with_data(
+			partition.clone(), 
+			operator.clone(), 
+			from.clone(), 
+			to.clone(), 
+			value.clone(), 
+			data.clone(), 
+			operator_data.clone(),
+			true
+		);
+		Self::_add_token_to_partition(
+			to.clone(),
+			to_partition.clone(),
+			value.clone()
+		);
+
+		Self::deposit_event(RawEvent::TransferByPartition(
+			partition.clone(), 
+			operator.clone(),
+			from.clone(),
+			to.clone(),
+			value.clone(),
+			data.clone(),
+			operator_data.clone()
+		));
+
+		if to_partition.clone() != partition.clone() {
+			Self::deposit_event(RawEvent::ChangedPartition(partition, to_partition, value));
+		}
+		Ok(())
+	}
+
+	fn _is_operator_for_partition(partition: Vec<u8>, operator: T::AccountId, token_holder: T::AccountId) -> bool {
+		(_is_operator_for(operator.clone(), token_holder.clone()))
+		|| authorize_operator_by_partition((token_holder.clone(), partition.clone(), operator.clone()))
+		|| (is_controllable() && is_controller_by_partition((partition, operator)))
+	}
+
+	fn _remove_token_from_partition(
+		from: T::AccountId,
+		partition: Vec<u8>,
+		value: T::TokenBalance
+	) -> Result {
+		let balance_of_by_partition = Self::balance_of_by_partition((from.clone(), partition.clone()));
+		let new_balance_of_by_partition = balance_of_by_partition.checked_sub(&value).ok_or("underflow in subtracting balance")?;
+        let total_supply_by_partition = Self::total_supply_by_partition();
+        let new_total_supply_by_partition = total_supply_by_partition.checked_sub(&value).ok_or("underflow in subtracting balance")?;
+        
+		<BalancesPartition<T>>::insert(from.clone(), new_balance_of_by_partition);
+		<ToTalSupplyByPartition<T>>::insert(partiton.clone(), new_total_supply_by_partition);
+
+		if balance_of_by_partition((from.clone(), partition.clone())) == 0 {
+			for i in [0..]
+		}
+	}
+
+	// ---ERC1410 end---
 }

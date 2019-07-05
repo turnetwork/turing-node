@@ -1,7 +1,6 @@
 /// A simple implementation of the DAO.
-
 use crate::daotoken as token;
-use parity_codec::{Encode, Decode};
+use parity_codec::{Decode, Encode};
 use rstd::prelude::*;
 use runtime_primitives::traits::{As, CheckedAdd, CheckedSub, Hash};
 use support::{
@@ -88,8 +87,10 @@ decl_storage! {
 
 // events
 decl_event!(
-    pub enum Event<T> where AccountId = <T as system::Trait>::AccountId,
-        Balance = <T as token::Trait>::TokenBalance
+    pub enum Event<T>
+    where
+        AccountId = <T as system::Trait>::AccountId,
+        Balance = <T as token::Trait>::TokenBalance,
     {
         ProposalAdded(u64, AccountId, Balance, Vec<u8>),
         ProposalTaillied(u64, bool, Balance),
@@ -123,9 +124,9 @@ decl_module! {
     ) -> Result{
         let sender = ensure_signed(origin)?;
         ensure!(<token::Module<T>>::balance_of(sender.clone()) > T::TokenBalance::sa(0), "This account doesn't hold the token");
-   
+
         ensure!(Self::allowed_recipients(recipient.clone()), "The recipient is not in whitelist");
-            
+
         let min_proposal_debate_period  = Self::min_proposal_debate_period().ok_or("MinProposalDebatePeriod not set.")?;
         ensure!(debating_period > min_proposal_debate_period, "debating_period too short");
         ensure!(debating_period < T::Moment::sa(8*7*24*3600), "debating_period too long");
@@ -149,7 +150,7 @@ decl_module! {
         buf.extend_from_slice(&amount.encode());
         buf.extend_from_slice(&proposal_id.encode());
         buf.extend_from_slice(&recipient.encode());
-        buf.extend_from_slice(&transaction_data); 
+        buf.extend_from_slice(&transaction_data);
         let proposal_hash = <T as system::Trait>::Hashing::hash(&buf[..]);
 
         let p = Proposal{
@@ -215,7 +216,7 @@ decl_module! {
         let execute_proposal_period = Self::execute_proposal_period().ok_or("execute_proposal_period not set?")?;
         let p = Self::proposals(proposal_id);
         let now = <timestamp::Module<T>>::get();
-        
+
         if p.open && now > p.voting_deadline.clone() + execute_proposal_period {
             Self::close_proposal(proposal_id)?;
             ensure!(false,"The execution deadline has passed.");
@@ -229,7 +230,7 @@ decl_module! {
         buf.extend_from_slice(&p.amount.encode());
         buf.extend_from_slice(&proposal_id.encode());
         buf.extend_from_slice(&p.recipient.encode());
-        buf.extend_from_slice(&transaction_data); 
+        buf.extend_from_slice(&transaction_data);
         let proposal_hash = <T as system::Trait>::Hashing::hash(&buf[..]);
 
         ensure!(p.proposal_hash == proposal_hash, "Not match the proposal hash");
@@ -271,7 +272,7 @@ decl_module! {
 
         <token::Module<T>>::lock(Self::curator().unwrap(), p.amount, proposal_id)?;
         <token::Module<T>>::unlock(p.recipient.clone(), p.amount, proposal_id)?;
-        
+
         Self::deposit_event(RawEvent::ProposalTaillied(proposal_id, true, quorum));
 
         Ok(())
@@ -331,8 +332,11 @@ decl_module! {
 // implementation of mudule
 // utility and private functions
 impl<T: Trait> Module<T> {
-    fn _unvote(sender: T::AccountId, proposal_id: u64) -> Result{
-        ensure!(<timestamp::Module<T>>::get() < Self::proposals(proposal_id).voting_deadline, "Already past voting deadling");
+    fn _unvote(sender: T::AccountId, proposal_id: u64) -> Result {
+        ensure!(
+            <timestamp::Module<T>>::get() < Self::proposals(proposal_id).voting_deadline,
+            "Already past voting deadling"
+        );
         <Proposals<T>>::mutate(proposal_id, |p| {
             if Self::vote_yes(sender.clone()) {
                 p.yea -= <token::Module<T>>::balance_of(sender.clone());
@@ -348,11 +352,13 @@ impl<T: Trait> Module<T> {
         Ok(())
     }
 
-    fn close_proposal(proposal_id: u64) -> Result{
+    fn close_proposal(proposal_id: u64) -> Result {
         let mut p = Self::proposals(proposal_id).clone();
         if p.open {
             let sum = Self::sum_of_proposal_deposits();
-            let new_sum = sum.checked_sub(&p.proposal_deposit).ok_or("Underflow when setting sum_of_proposal_deposits.")?;
+            let new_sum = sum
+                .checked_sub(&p.proposal_deposit)
+                .ok_or("Underflow when setting sum_of_proposal_deposits.")?;
             <SumOfProposalDeposits<T>>::put(new_sum);
         }
         p.open = false;
@@ -367,11 +373,12 @@ impl<T: Trait> Module<T> {
     }
 
     fn min_quorum(min_quorum_divisor: u32, value: T::TokenBalance) -> T::TokenBalance {
-        <token::Module<T>>::total_supply() / T::TokenBalance::sa(min_quorum_divisor.into()) + 
-        (value * <token::Module<T>>::total_supply()) / (T::TokenBalance::sa(3) * Self::actual_balance())
+        <token::Module<T>>::total_supply() / T::TokenBalance::sa(min_quorum_divisor.into())
+            + (value * <token::Module<T>>::total_supply())
+                / (T::TokenBalance::sa(3) * Self::actual_balance())
     }
 
-    fn get_or_modify_blocked(account: T::AccountId) -> bool{
+    fn get_or_modify_blocked(account: T::AccountId) -> bool {
         if Self::blocked(account.clone()) == 0 {
             return false;
         }
@@ -451,36 +458,36 @@ mod tests {
             .unwrap()
             .0;
         t.extend(
-            token::GenesisConfig::<Test> { 
+            token::GenesisConfig::<Test> {
                 total_supply: 21000000,
                 name: "ABMatrix Token".as_bytes().into(),
-			    symbol: "ABT".as_bytes().into(),
-			    decimal: 18, 
+                symbol: "ABT".as_bytes().into(),
+                decimal: 18,
             }
-                .build_storage()
-                .unwrap()
-                .0,
-        ); 
+            .build_storage()
+            .unwrap()
+            .0,
+        );
         t.extend(
             GenesisConfig::<Test> {
                 curator: 1,
-			    min_proposal_deposit: 100,
-			    min_quorum_divisor: 7,
-			    min_proposal_debate_period: 14,
-			    quorum_havling_period: 175,
-			    execute_proposal_period: 10,
-			    max_deposit_divisor: 100,
+                min_proposal_deposit: 100,
+                min_quorum_divisor: 7,
+                min_proposal_debate_period: 14,
+                quorum_havling_period: 175,
+                execute_proposal_period: 10,
+                max_deposit_divisor: 100,
             }
-                .build_storage()
-                .unwrap()
-                .0,
+            .build_storage()
+            .unwrap()
+            .0,
         );
         t.into()
     }
 
     #[test]
-    fn should_init(){
-       with_externalities(&mut new_test_ext(), || {
+    fn should_init() {
+        with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
             assert_eq!(Dao::curator().unwrap(), 1);
             assert_eq!(Dao::last_time_min_quorum_met().unwrap(), 0);
@@ -501,77 +508,77 @@ mod tests {
     }
 
     #[test]
-    fn should_fail_insufficient_balance(){
+    fn should_fail_insufficient_balance() {
         with_externalities(&mut new_test_ext(), || {
-        assert_ok!(init());
+            assert_ok!(init());
             assert_noop!(
-            Dao::new_proposal(
-                Origin::signed(2),
-                1,
-                10,
-                "description".as_bytes().into(),
-                "transaction_data".as_bytes().into(),
-                15,
-                101
-            ),
-            "This account doesn't hold the token"
+                Dao::new_proposal(
+                    Origin::signed(2),
+                    1,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    15,
+                    101
+                ),
+                "This account doesn't hold the token"
             );
         });
     }
 
     #[test]
-    fn should_fail_not_allowed_recipients(){
+    fn should_fail_not_allowed_recipients() {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
             assert_noop!(
-            Dao::new_proposal(
-                Origin::signed(1),
-                2,
-                10,
-                "description".as_bytes().into(),
-                "transaction_data".as_bytes().into(),
-                15,
-                101
-            ),
-            "The recipient is not in whitelist"
+                Dao::new_proposal(
+                    Origin::signed(1),
+                    2,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    15,
+                    101
+                ),
+                "The recipient is not in whitelist"
             );
         });
     }
 
     #[test]
-    fn should_fail_short_debating_period(){
+    fn should_fail_short_debating_period() {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
             assert_noop!(
-            Dao::new_proposal(
-                Origin::signed(1),
-                1,
-                10,
-                "description".as_bytes().into(),
-                "transaction_data".as_bytes().into(),
-                13,
-                101
-            ),
-            "debating_period too short"
+                Dao::new_proposal(
+                    Origin::signed(1),
+                    1,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    13,
+                    101
+                ),
+                "debating_period too short"
             );
         });
     }
 
     #[test]
-    fn should_fail_long_debating_period(){
+    fn should_fail_long_debating_period() {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
             assert_noop!(
-            Dao::new_proposal(
-                Origin::signed(1),
-                1,
-                10,
-                "description".as_bytes().into(),
-                "transaction_data".as_bytes().into(),
-                8*7*24*3600+1,
-                101
-            ),
-            "debating_period too long"
+                Dao::new_proposal(
+                    Origin::signed(1),
+                    1,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    8 * 7 * 24 * 3600 + 1,
+                    101
+                ),
+                "debating_period too long"
             );
         });
     }
@@ -581,16 +588,16 @@ mod tests {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
             assert_noop!(
-            Dao::new_proposal(
-                Origin::signed(1),
-                1,
-                10,
-                "description".as_bytes().into(),
-                "transaction_data".as_bytes().into(),
-                15,
-                100
-            ),
-            "deposit should be more than min_deposit"
+                Dao::new_proposal(
+                    Origin::signed(1),
+                    1,
+                    10,
+                    "description".as_bytes().into(),
+                    "transaction_data".as_bytes().into(),
+                    15,
+                    100
+                ),
+                "deposit should be more than min_deposit"
             );
         });
     }
@@ -599,17 +606,15 @@ mod tests {
     fn should_pass_proposal() {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
-            assert_ok!(
-                Dao::new_proposal(
-                    Origin::signed(1),
-                    1,
-                    10,
-                    "description".as_bytes().into(),
-                    "transaction_data".as_bytes().into(),
-                    15,
-                    101
-                )
-            );
+            assert_ok!(Dao::new_proposal(
+                Origin::signed(1),
+                1,
+                10,
+                "description".as_bytes().into(),
+                "transaction_data".as_bytes().into(),
+                15,
+                101
+            ));
         });
     }
 
@@ -617,19 +622,17 @@ mod tests {
     fn should_pass_vote() {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
-            assert_ok!(
-                Dao::new_proposal(
-                    Origin::signed(1),
-                    1,
-                    10,
-                    "description".as_bytes().into(),
-                    "transaction_data".as_bytes().into(),
-                    15,
-                    101
-                )
-            );
+            assert_ok!(Dao::new_proposal(
+                Origin::signed(1),
+                1,
+                10,
+                "description".as_bytes().into(),
+                "transaction_data".as_bytes().into(),
+                15,
+                101
+            ));
             assert_ok!(Dao::vote(Origin::signed(1), 1, true));
-            assert_eq!(Dao::proposals(1).yea, 21000000-101);
+            assert_eq!(Dao::proposals(1).yea, 21000000 - 101);
             assert_eq!(Dao::vote_yes(1), true);
             assert_eq!(Dao::blocked(1), 1);
             assert_eq!(Dao::voting_register((1, 0)), 1);
@@ -638,12 +641,12 @@ mod tests {
     }
 
     #[test]
-    fn should_pass_change_allowed_recipients(){
-       with_externalities(&mut new_test_ext(), || {
+    fn should_pass_change_allowed_recipients() {
+        with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
             assert_ok!(Dao::change_allowed_recipients(Origin::signed(1), 2, true));
             assert_eq!(Dao::allowed_recipients(2), true);
-       }); 
+        });
     }
 
     #[test]
@@ -651,23 +654,24 @@ mod tests {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
             assert_ok!(Dao::change_allowed_recipients(Origin::signed(1), 2, true));
-            assert_ok!(
-                Dao::new_proposal(
-                    Origin::signed(1),
-                    2,
-                    10,
-                    "description".as_bytes().into(),
-                    "transaction_data".as_bytes().into(),
-                    15,
-                    101
-                )
-            );
+            assert_ok!(Dao::new_proposal(
+                Origin::signed(1),
+                2,
+                10,
+                "description".as_bytes().into(),
+                "transaction_data".as_bytes().into(),
+                15,
+                101
+            ));
             assert_ok!(Dao::vote(Origin::signed(1), 1, true));
             Timestamp::set_timestamp(16);
-            assert_ok!(Dao::execute_proposal(1, "transaction_data".as_bytes().into()));
+            assert_ok!(Dao::execute_proposal(
+                1,
+                "transaction_data".as_bytes().into()
+            ));
             assert_eq!(Dao::proposals(1).proposal_passed, true);
             assert_eq!(Token::balance_of(2), 10);
-            assert_eq!(Token::balance_of(1), 21000000-10);
+            assert_eq!(Token::balance_of(1), 21000000 - 10);
             assert_eq!(Dao::proposals(1).open, false);
         });
     }
@@ -676,17 +680,15 @@ mod tests {
     fn should_pass_unblock_me() {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(init());
-            assert_ok!(
-                Dao::new_proposal(
-                    Origin::signed(1),
-                    1,
-                    10,
-                    "description".as_bytes().into(),
-                    "transaction_data".as_bytes().into(),
-                    15,
-                    101
-                )
-            );
+            assert_ok!(Dao::new_proposal(
+                Origin::signed(1),
+                1,
+                10,
+                "description".as_bytes().into(),
+                "transaction_data".as_bytes().into(),
+                15,
+                101
+            ));
             assert_ok!(Dao::vote(Origin::signed(1), 1, true));
             assert_ok!(Dao::unblock_me(Origin::signed(1)));
         });

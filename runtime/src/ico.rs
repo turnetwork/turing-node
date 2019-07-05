@@ -1,19 +1,20 @@
 use crate::lockabletoken as token;
-use parity_codec::{Encode, Decode};
+use parity_codec::{Decode, Encode};
 use rstd::prelude::*;
 use runtime_primitives::traits::{As, Bounded};
+use support::traits::{LockableCurrency, WithdrawReasons};
 use support::{
-    decl_event, decl_module, decl_storage, dispatch::Result, ensure, StorageValue, StorageMap
+    decl_event, decl_module, decl_storage, dispatch::Result, ensure, StorageMap, StorageValue,
 };
-use support::traits::{WithdrawReasons, LockableCurrency};
 use {system::ensure_signed, timestamp};
 
-pub trait Trait: timestamp::Trait + token::Trait{
+pub trait Trait: timestamp::Trait + token::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-    type Currency: LockableCurrency<Self::AccountId, Moment=Self::BlockNumber>;
+    type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 }
 
-type Balance<T> = <<T as Trait>::Currency as support::traits::Currency<<T as system::Trait>::AccountId>>::Balance;
+type Balance<T> =
+    <<T as Trait>::Currency as support::traits::Currency<<T as system::Trait>::AccountId>>::Balance;
 
 #[cfg_attr(feature = "std", derive(Debug))]
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
@@ -30,7 +31,7 @@ pub struct Crowdsale<AccountId, TokenBalance, Moment> {
 const PAY_ID: [u8; 8] = *b"exchange";
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Ico {
+    trait Store for Module<T: Trait> as Ico {
         Crowdsales get(crowdsales) : map u32 => Crowdsale<T::AccountId, T::TokenBalance, T::Moment>;
         CrowdsaleCount get(crowdsale_count) : u32 = 0;
     }
@@ -38,7 +39,9 @@ decl_storage! {
 
 // events
 decl_event!(
-    pub enum Event<T> where AccountId = <T as system::Trait>::AccountId,
+    pub enum Event<T>
+    where
+        AccountId = <T as system::Trait>::AccountId,
         TokenBalance = <T as token::Trait>::TokenBalance,
     {
         CreateCrowdsale(u32, AccountId),
@@ -69,7 +72,7 @@ decl_module! {
         token_total_supply: T::TokenBalance,
         token_decimal: u32) -> Result {
             let sender = ensure_signed(origin)?;
-            
+
             let c = Crowdsale{
                 beneficiary: if_successful_send_to,
                 funding_goal: funding_goal_in_turs,
@@ -79,7 +82,7 @@ decl_module! {
                 crowdsale_closed: false,
                 price
             };
- 
+
         let id = Self::crowdsale_count();
         <Crowdsales<T>>::insert(id, c);
         <CrowdsaleCount<T>>::mutate(|i| *i += 1);
@@ -87,7 +90,7 @@ decl_module! {
         let create_token_result = <token::Module<T>>::create_token(sender.clone(), id, token_name, token_symbol, token_total_supply, token_decimal);
         if create_token_result.is_ok() {
             Self::deposit_event(RawEvent::CreateCrowdsale(id, sender));
-        } 
+        }
 
         create_token_result
     }
@@ -100,7 +103,7 @@ decl_module! {
         ensure!(!c.crowdsale_closed, "crowsale has already been closed");
 
         let value_to_tokenbalance = <Balance<T> as As<u64>>::sa(T::TokenBalance::as_(value));
- 
+
         // lock balance
         T::Currency::set_lock(
             PAY_ID,
@@ -114,7 +117,7 @@ decl_module! {
         let owner = <token::Module<T>>::owners(crowdsale_id);
 
         let tranfer_impl_result = <token::Module<T>>::transfer_impl(crowdsale_id, owner, sender.clone(), value / T::TokenBalance::sa(c.price.into()));
-        
+
         if tranfer_impl_result.is_ok(){
             Self::deposit_event(RawEvent::PayToken(crowdsale_id, sender, value));
         }
@@ -168,9 +171,9 @@ decl_module! {
 
         let owner = <token::Module<T>>::owners(crowdsale_id);
         let tranfer_impl_result = <token::Module<T>>::transfer_impl(
-            crowdsale_id, 
-            sender.clone(), 
-            owner, 
+            crowdsale_id,
+            sender.clone(),
+            owner,
             <token::Module<T>>::balance_of((crowdsale_id, sender.clone())) / T::TokenBalance::sa(c.price.into())
             );
         if tranfer_impl_result.is_ok(){
@@ -191,13 +194,20 @@ impl<T: Trait> Module<T> {
     fn check_goal_reached(crowdsale_id: u32) -> Result {
         let mut c = Self::crowdsales(crowdsale_id);
         if c.crowdsale_closed {
-            return Ok(())
+            return Ok(());
         }
-        ensure!(<timestamp::Module<T>>::get() >= c.deadline, "It's not the deadline yet");
+        ensure!(
+            <timestamp::Module<T>>::get() >= c.deadline,
+            "It's not the deadline yet"
+        );
 
         if c.amount_raised >= c.funding_goal {
             c.funding_goal_reached = true;
-            Self::deposit_event(RawEvent::GoalReached(crowdsale_id, c.clone().beneficiary, c.clone().amount_raised));
+            Self::deposit_event(RawEvent::GoalReached(
+                crowdsale_id,
+                c.clone().beneficiary,
+                c.clone().amount_raised,
+            ));
         }
 
         c.crowdsale_closed = true;
@@ -206,7 +216,6 @@ impl<T: Trait> Module<T> {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -257,19 +266,19 @@ mod tests {
         type OnTimestampSet = ();
     }
     impl balances::Trait for Test {
-	    type Balance = u64;
+        type Balance = u64;
         type OnFreeBalanceZero = ();
-	    type OnNewAccount = ();
-	    type Event = ();
-	    type TransactionPayment = ();
-	    type TransferPayment = ();
-	    type DustRemoval = ();
+        type OnNewAccount = ();
+        type Event = ();
+        type TransactionPayment = ();
+        type TransferPayment = ();
+        type DustRemoval = ();
     }
     impl Trait for Test {
         type Event = ();
         type Currency = balances::Module<Self>;
     }
-    
+
     type Ico = Module<Test>;
     type Token = token::Module<Test>;
     type Timestamp = timestamp::Module<Test>;
@@ -285,17 +294,17 @@ mod tests {
             balances::GenesisConfig::<Test> {
                 balances: vec![(1, 200)],
                 transaction_base_fee: 0,
-			    transaction_byte_fee: 0,
-			    existential_deposit: 1,
-			    transfer_fee: 0,
-			    creation_fee: 0,
-			    vesting: vec![],
+                transaction_byte_fee: 0,
+                existential_deposit: 1,
+                transfer_fee: 0,
+                creation_fee: 0,
+                vesting: vec![],
             }
-                .build_storage()
-                .unwrap()
-                .0,
+            .build_storage()
+            .unwrap()
+            .0,
         );
-        
+
         t.into()
     }
 
@@ -312,8 +321,7 @@ mod tests {
                 "ABT".as_bytes().into(),
                 1000,
                 18
-                )
-            );
+            ));
         });
     }
 
@@ -330,12 +338,14 @@ mod tests {
                 "ABT".as_bytes().into(),
                 1000,
                 18
-                )
-            );
+            ));
             assert_ok!(Ico::pay(Origin::signed(1), 0, 100));
 
             // check lock
-            assert_noop!(Balances::transfer(Origin::signed(1), 2, 200), "account liquidity restrictions prevent withdrawal");
+            assert_noop!(
+                Balances::transfer(Origin::signed(1), 2, 200),
+                "account liquidity restrictions prevent withdrawal"
+            );
 
             assert_eq!(Token::balance_of((0, 1)), 1100);
         });
@@ -354,15 +364,14 @@ mod tests {
                 "ABT".as_bytes().into(),
                 1000,
                 18
-                )
-            );
+            ));
             assert_ok!(Ico::pay(Origin::signed(1), 0, 100));
             assert_ok!(Ico::invest(Origin::signed(1), 0, 100));
         });
     }
 
     #[test]
-    fn should_pass_check_goal_reached(){
+    fn should_pass_check_goal_reached() {
         with_externalities(&mut new_test_ext(), || {
             assert_ok!(Ico::create_crowdsale(
                 Origin::signed(1),
@@ -429,7 +438,7 @@ mod tests {
             assert_eq!(Token::balance_of((0, 1)), 1100);
             assert_ok!(Ico::invest(Origin::signed(1), 0, 99));
             assert_eq!(Token::balance_of((0, 1)), 1001);
-            
+
             assert_eq!(Token::locked_tokens((0, 1)), 99);
 
             Timestamp::set_timestamp(11);
