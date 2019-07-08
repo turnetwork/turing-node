@@ -1,9 +1,9 @@
 /// A simple implementation of the ERC1400, reference: https://github.com/ethereum/EIPs/issues/1411
 use parity_codec::{Codec, Decode, Encode};
 use rstd::prelude::*;
-use runtime_primitives::traits::{As, CheckedAdd, CheckedSub, Member, SimpleArithmetic};
+use runtime_primitives::traits::{As, CheckedAdd, CheckedSub, Member, SimpleArithmetic, Hash};
 use support::{
-    decl_event, decl_module, decl_storage, dispatch::Result, ensure, Parameter, StorageMap,
+    decl_event, decl_module, decl_storage, dispatch::Result, ensure, Parameter, StorageMap, StorageValue,
 };
 use system::ensure_signed;
 
@@ -97,7 +97,7 @@ decl_storage! {
 
         // ---ERC1400 begin---
         // TODO: what is this?
-        Granularity get(granularity): u128;
+        Granularity get(granularity): T::TokenBalance;
 
         Documents get(get_document): map Bytes32 => Doc<T::Hash>;
         Issuable get(is_issuable): bool = true;
@@ -178,14 +178,14 @@ decl_module! {
         // TODO: isValidCertificate(data)?
         fn redeem(origin, #[compact] value: T::TokenBalance, data: Vec<u8>) -> Result {
             let sender = ensure_signed(origin)?;
-            Self::_redeem("", sender.clone(), sender, value, data)
+            Self::_redeem("".into(), sender.clone(), sender, value, data)
         }
 
         // TODO: isValidCertificate(data)?
         fn redeem_from(origin, token_holder: T::AccountId, #[compact] value: T::TokenBalance, data: Vec<u8>) -> Result {
             let sender = ensure_signed(origin)?;
             ensure!(Self::_is_operator_for(sender.clone(), token_holder.clone()), "A7: Transfer Blocked - Identity restriction");
-            Self::_redeem("", sender, token_holder, value, data)
+            Self::_redeem("".into(), sender, token_holder, value, data)
         }
 
         // ---ERC777 end---
@@ -212,7 +212,7 @@ decl_module! {
             partition: Vec<u8>,
             from: T::AccountId,
             to: T::AccountId,
-            #[compact] value: T::TokenBalance
+            #[compact] value: T::TokenBalance,
             data: Vec<u8>,
             operator_data: Vec<u8>
         ) -> Result {
@@ -239,7 +239,7 @@ decl_module! {
         }
 
         /// Remove the right of the operator address to be an operator on a given
-           /// partition for 'msg.sender' and to transfer and redeem tokens on its behalf.
+        /// partition for 'msg.sender' and to transfer and redeem tokens on its behalf.
         fn revoke_operator_by_partition(origin, partition: Vec<u8>, operator: T::AccountId) -> Result {
             let sender = ensure_signed(origin)?;
             <AuthorizedOperatorByPartition<T>>::insert((sender.clone(), partition.clone(), operator.clone()), false);
@@ -299,21 +299,21 @@ decl_module! {
         /// Issue tokens from a specific partition.
         fn issue_by_partition(origin, partition: Bytes32, token_holder: T::AccountId, #[compact] value: T::TokenBalance, data: Vec<u8>) -> Result {
             let sender = ensure_signed(origin)?;
-            Self::_issue_by_partition(partition, sender, token_holder, value, data, "")
+            Self::_issue_by_partition(partition, sender, token_holder, value, data, "".into())
         }
 
         // TODO: isValidCertificate(data)?
         /// Redeem tokens of a specific partition.
         fn redeem_by_partition(origin, partition: Bytes32, #[compact] value: T::TokenBalance, data: Vec<u8>) -> Result {
             let sender = ensure_signed(origin)?;
-            Self::_redeem_by_partition(partition, sender, value, data, "")
+            Self::_redeem_by_partition(partition, sender.clone(), sender, value, data, "")
         }
 
         // TODO: isValidCertificate(operatorData)?
         /// Redeem tokens of a specific partition.
         fn operator_redeem_by_partition(
             origin,
-            partition: Vec<u8>,
+            partition: Bytes32,
             token_holder: T::AccountId,
             #[compact] value: T::TokenBalance,
             operator_data: Vec<u8>
@@ -322,7 +322,7 @@ decl_module! {
             ensure!(Self::is_operator_for_partition((
                 partition.clone(),
                 sender.clone(),
-                token_holder.clone(),
+                token_holder.clone()
                 )), "A7: Transfer Blocked - Identity restriction");
 
             Self::_redeem_by_partition(partition, sender, token_holder, value, data, operator_data)
@@ -534,6 +534,10 @@ impl<T: Trait> Module<T> {
         Self::deposit_event(RawEvent::Redeemed(operator, from, value, data));
         Ok(())
     }
+
+    fn _is_multiple(value: T::TokenBalance) -> bool {
+        value / Self::granularity() * Self::granularity() == value
+    }
     // ---ERC777 end---
 
     // ---ERC1410 begin---
@@ -611,14 +615,14 @@ impl<T: Trait> Module<T> {
         let new_balance_of_by_partition = balance_of_by_partition
             .checked_sub(&value)
             .ok_or("underflow in subtracting balance")?;
-        let total_supply_by_partition = Self::total_supply_by_partition();
+        let total_supply_by_partition = Self::total_supply_by_partition(partition.clone());
         let new_total_supply_by_partition = total_supply_by_partition
             .checked_sub(&value)
             .ok_or("underflow in subtracting balance")?;
 
         <BalancesPartition<T>>::insert(
-            (from.clone(), new_balance_of_by_partition),
-            new_balance_of_by_partition,
+            (from.clone(), new_balance_of_by_partition.clone()),
+            new_balance_of_by_partition.clone(),
         );
         <ToTalSupplyByPartition<T>>::insert(partition.clone(), new_total_supply_by_partition);
 
@@ -626,10 +630,10 @@ impl<T: Trait> Module<T> {
         if Self::balance_of_by_partition((from.clone(), partition.clone()))
             == T::TokenBalance::sa(0)
         {
-            for i in 0..Self::partitions_of_count {
+            for i in 0..Self::partitions_of_count() {
                 if Self::partitions_of((from.clone(), i)) == partition {
                     <PartitionsOf<T>>::remove((from.clone(), i));
-                    <PartitionsOfCount<T>>::mutate(|count| count -= 1);
+                    <PartitionsOfCount<T>>::put(Self::partitions_of_count() - 1);
                     break;
                 }
             }
@@ -637,10 +641,10 @@ impl<T: Trait> Module<T> {
 
         // If the total supply is zero, finds and deletes the partition.
         if Self::total_supply_by_partition(partition.clone()) == T::TokenBalance::sa(0) {
-            for i in 0..Self::total_partitions_count {
+            for i in 0..Self::total_partitions_count() {
                 if Self::total_partitions(i) == partition.clone() {
                     <TotalPartitions<T>>::remove(i);
-                    <TotalPartitionsCount<T>>::mutate(|count| count -= 1);
+                    <TotalPartitionsCount<T>>::put(Self::total_partitions_count() - 1);
                     break;
                 }
             }
@@ -660,22 +664,22 @@ impl<T: Trait> Module<T> {
                 == T::TokenBalance::sa(0)
             {
                 // push to PartitionsOf
-                <PartitionsOf<T>>::insert(Self::partitions_of_count, partition.clone());
-                <PartitionsOfCount<T>>::mutate(|count| count += 1);
+                <PartitionsOf<T>>::insert(Self::partitions_of_count(), partition.clone());
+                <PartitionsOfCount<T>>::put(Self::partitions_of_count() + 1);
             }
             <BalancesPartition<T>>::mutate((to.clone(), partition.clone()), |balance| {
-                balance = balance + value.clone()
+                *balance = *balance + value.clone()
             });
 
             if Self::total_supply_by_partition(partition.clone()) == T::TokenBalance::sa(0) {
                 // push to TotalPartitons
-                <TotalPartitions<T>>::insert(Self::total_partitions_count, partition.clone());
+                <TotalPartitions<T>>::insert(Self::total_partitions_count(), partition.clone());
                 <TotalPartitionsCount<T>>::mutate(|count| {
-                    count += 1;
+                    *count += 1;
                 });
             }
             <ToTalSupplyByPartition<T>>::mutate(partition.clone(), |total_supply| {
-                total_supply = total_supply + value
+                *total_supply = *total_supply + value
             });
         }
 
@@ -736,7 +740,7 @@ impl<T: Trait> Module<T> {
             from.clone(),
             value.clone(),
             data.clone(),
-            operator_data.clone(),
+            // operator_data.clone()
         );
 
         Self::deposit_event(RawEvent::RedeemedByPartition(
@@ -745,7 +749,7 @@ impl<T: Trait> Module<T> {
             from,
             value,
             data,
-            operator_data,
+            // operator_data
         ));
 
         Ok(())
@@ -772,14 +776,14 @@ impl<T: Trait> Module<T> {
         data: Vec<u8>,
         operator_data: Vec<u8>,
     ) -> Result {
-        Self::_issue(
-            to_partition.clone(),
-            operator.clone(),
-            to.clone(),
-            value.clone(),
-            data.clone(),
-            operator_data.clone(),
-        );
+        // Self::_issue(
+        //     to_partition.clone(),
+        //     operator.clone(),
+        //     to.clone(),
+        //     value.clone(),
+        //     data.clone(),
+        //     operator_data.clone(),
+        // );
         Self::_add_token_to_partition(to.clone(), to_partition.clone(), value.clone());
 
         Self::deposit_event(RawEvent::IssuedByPartition(
