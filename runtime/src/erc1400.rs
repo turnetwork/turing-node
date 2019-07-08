@@ -15,10 +15,12 @@ pub trait Trait: system::Trait {
 	type TokenBalance: Parameter + Member + SimpleArithmetic + Codec + Default + Copy + As<usize> + As<u64>;
 }
 
-struct Doc <Hash>{
+struct Doc <hash>{
 	docURI: Vec<u8>,
-	docHash: Hash,
+	docHash: hash,
 }
+
+pub type bytes32 = [u8;32];
 
 // This module's storage items.
 decl_storage! {
@@ -38,8 +40,7 @@ decl_storage! {
 		Balances get(balance_of): map T::AccountId => T::TokenBalance;
 
 		// list of controllers
-		Controllers get(controllers): map u32 => T::AccountId;
-		ControllersCount get(controllers_count): u32;
+		Controllers get(controllers): Vec<T::AccountId>;
 
 		// operator	=> token_holder	
 		AuthorizedOperator get(authorized_operator): map (T::AccountId, T::AccountId) => bool;
@@ -52,46 +53,47 @@ decl_storage! {
 
 		// ---ERC1410 begin---
 		// List of partitions.
-		TotalPartitions get(total_partitions): map u32 => Vec<u8>;
-		PartitionsCount get(partitions_count): u32;
+		TotalPartitions get(total_partitions): map u64 => bytes32;
+		TotalPartitionsCount get(total_partitions_count): u64;
 
 		// Mapping from partition to global balance of corresponding partition.
-		ToTalSupplyByPartition get(total_supply_by_partition): map Vec<u8> => T::TokenBalance;
+		ToTalSupplyByPartition get(total_supply_by_partition): map bytes32 => T::TokenBalance;
 
 		// Mapping from tokenHolder to their partitions.
-		PartitionsOf get(partitions_of): map T::AccountId => Vec<u8>;
+		PartitionsOf get(partitions_of): map (T::AccountId, u64) => bytes32;
+		PartitionsOfCount get(partitions_of_count): u64;
 
 		// Mapping from (tokenHolder, partition) to balance of corresponding partition.
-		BalancesPartition get(balance_of_by_partition): map (Vec<u8>, T::AccountId) => T::TokenBalance;
+		BalancesPartition get(balance_of_by_partition): map (T::AccountId, bytes32, u64) => T::TokenBalance;
 		
 		// Mapping from tokenHolder to their default partitions (for ERC777 and ERC20 compatibility).
-		DefaultPartitionsOf get(default_partitions_of): map T::AccountId => Vec<u8>;
+		DefaultPartitionsOf get(default_partitions_of): map T::AccountId => Vec<bytes32>;
 
 		// List of token default partitions (for ERC20 compatibility).
-		TokenDefaultPartitions get(token_default_partitions): Vec<u8>;
+		TokenDefaultPartitions get(token_default_partitions): Vec<bytes32>;
 		
 		// Mapping from (tokenHolder, partition, operator) to 'approved for partition' status. [TOKEN-HOLDER-SPECIFIC]
-		AuthorizedOperatorByPartition get(authorized_operator_by_partition): map (T::AccountId, Vec<u8>, T::AccountId) => bool;
+		AuthorizedOperatorByPartition get(authorized_operator_by_partition): map (T::AccountId, Vec<bytes32>, T::AccountId) => bool;
 		
-		// Mapping from partition to controllers_id for the partition. [NOT TOKEN-HOLDER-SPECIFIC]
-		ControllersByPartition get(controllers_by_partition): map Vec<u8> => u32;
+		// Mapping from partition to controllers for the partition. [NOT TOKEN-HOLDER-SPECIFIC]
+		ControllersByPartition get(controllers_by_partition): map bytes32 => Vec<T::AccountId>;
 		
 		// Mapping from (partition, operator) to PartitionController status. [NOT TOKEN-HOLDER-SPECIFIC]
-		IsControllerByPartition get(is_controller_by_partition): map (Vec<u8>, T::AccountId) => bool;
+		IsControllerByPartition get(is_controller_by_partition): map (bytes32, T::AccountId) => bool;
 		
 		// Mapping from (partition, operator, token_holder)
-		IsOperatorForPartition get(is_operator_for_partition): map (Vec<u8>, T::AccountId, T::AccountId) => Option<bool>;
+		IsOperatorForPartition get(is_operator_for_partition): map (bytes32, T::AccountId, T::AccountId) => Option<bool>;
 		// ---ERC1410 end---
 
 		// ---ERC1400 begin---
 		// TODO: what is this?
 		Granularity get(granularity): u128;
 
-		Documents get(get_document): map Vec<u8> => Doc<T::Hash>;
+		Documents get(get_document): map bytes32 => Doc<T::Hash>;
 		Issuable get(is_issuable): bool = true;
 		
 		Operator get(operator): map (T::AccountId, T::AccountId) => bool;
-		OperatorForPartition get(operator_for_partition): map (Vec<u8>, T::AccountId, T::AccountId) => bool;
+		OperatorForPartition get(operator_for_partition): map (bytes32, T::AccountId, T::AccountId) => bool;
 		// ---ERC1400 end---
 	}
 
@@ -211,6 +213,7 @@ decl_module! {
 
 		// ---ERC1410 begin---
 		// TODO: isValidCertificate(data)?
+		/// Transfer tokens from a specific partition.
 		fn transfer_by_partition(
 			origin,
 			partition: Vec<u8>, 
@@ -223,6 +226,7 @@ decl_module! {
 		}
 
 		// TODO: isValidCertificate(operator_data)?
+		/// Transfer tokens from a specific partition through an operator.
 		fn operator_transfer_by_partition(
 			origin,
 			partition: Vec<u8>, 
@@ -237,12 +241,15 @@ decl_module! {
 			Self::_transfer_by_partition(partition, sender, from, to, value, data, operator_data)
 		}
 
+		/// Set default partitions to transfer from.
+   		/// Function used for ERC777 and ERC20 backwards compatibility.
 		fn set_default_partitons(origin, partitons: Vec<u8>) -> Result {
 			let sender = ensure_signed(origin)?;
 			<DefaultPartitionsOf<T>>::insert(sender, partitons);
 			Ok(())
 		}
 
+		/// Set 'operator' as an operator for 'msg.sender' for a given partition.
 		fn authorize_operator_by_partition(origin, partition: Vec<u8>, operator: T::AccountId) -> Result {
 			let sender = ensure_signed(origin)?;
 			<AuthorizedOperatorByPartition<T>>::insert((sender.clone(), partition.clone(), operator.clone()), true);
@@ -250,6 +257,8 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Remove the right of the operator address to be an operator on a given
+   		/// partition for 'msg.sender' and to transfer and redeem tokens on its behalf.
 		fn revoke_operator_by_partition(origin, partition: Vec<u8>, operator: T::AccountId) -> Result {
 			let sender = ensure_signed(origin)?;
 			<AuthorizedOperatorByPartition<T>>::insert((sender.clone(), partition.clone(), operator.clone()), false);
@@ -461,7 +470,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn _transfer_with_data(
-		partition: Vec<u8>,
+		partition: bytes32,
 		operator: T::AccountId,
 		from: T::AccountId,
 		to: T::AccountId,
@@ -493,7 +502,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn _redeem(
-		partition: Vec<u8>, 
+		partition: bytes32, 
 		operator: T::AccountId, 
 		from: T::AccountId, 
 		value: T::TokenBalance, 
@@ -520,7 +529,7 @@ impl<T: Trait> Module<T> {
 
 	// ---ERC1410 begin---
 	fn _transfer_by_partition(
-		partition: Vec<u8>,
+		partition: bytes32,
 		operator: T::AccountId,
 		from: T::AccountId,
 		to: T::AccountId,
@@ -567,15 +576,18 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	fn _is_operator_for_partition(partition: Vec<u8>, operator: T::AccountId, token_holder: T::AccountId) -> bool {
+	/// Indicate whether the operator address is an operator of the tokenHolder
+    /// address for the given partition.
+	fn _is_operator_for_partition(partition: bytes32, operator: T::AccountId, token_holder: T::AccountId) -> bool {
 		(_is_operator_for(operator.clone(), token_holder.clone()))
 		|| authorize_operator_by_partition((token_holder.clone(), partition.clone(), operator.clone()))
 		|| (is_controllable() && is_controller_by_partition((partition, operator)))
 	}
 
+	/// Remove a token from a specific partition.
 	fn _remove_token_from_partition(
 		from: T::AccountId,
-		partition: Vec<u8>,
+		partition: bytes32,
 		value: T::TokenBalance
 	) -> Result {
 		let balance_of_by_partition = Self::balance_of_by_partition((from.clone(), partition.clone()));
@@ -586,8 +598,88 @@ impl<T: Trait> Module<T> {
 		<BalancesPartition<T>>::insert(from.clone(), new_balance_of_by_partition);
 		<ToTalSupplyByPartition<T>>::insert(partiton.clone(), new_total_supply_by_partition);
 
-		if balance_of_by_partition((from.clone(), partition.clone())) == 0 {
-			for i in [0..]
+		// If the balance of the TokenHolder's partition is zero, finds and deletes the partition.
+		if Self::balance_of_by_partition((from.clone(), partition.clone())) == 0 {
+			for i in (0..Self::partitions_of_count) {
+				if Self::partitions_of((from.clone(), i)) == partition {
+					<PartitionsOf<T>>::remove((from.clone(), i));
+					<PartitionsOfCount<T>>::mutate(|count| count--);
+					break;
+				}
+			}
+		}
+
+		// If the total supply is zero, finds and deletes the partition.
+		if Self::total_supply_by_partition(partition.clone()) == 0 {
+			for i in (0..Self::total_partitions_count) {
+				if Self::total_partitions(i) == partition.clone() {
+					<TotalPartitions<T>>::remove(i);
+					<TotalPartitionsCount<T>>::mutate(|count| count--);
+					break;
+				}
+			}
+		}
+
+		Ok(())
+	}
+
+	/// Add a token to a specific partition.
+	fn _add_token_to_partition(
+		to: T::AccountId,
+		partition: bytes32,
+		value: T::TokenBalance
+	) -> Result {
+		if value != T::TokenBalance::sa(0) {
+			if Self::balance_of_by_partition((to.clone(), partition.clone())) == T::TokenBalance::sa(0) {
+				// push to PartitionsOf
+				<PartitionsOf<T>>::insert(Self::partitions_of_count, partition.clone());
+				<PartitionsOfCount<T>>::mutate(|count| count++);
+			}
+			<BalancesPartition<T>>::mutate((to.clone(), partition.clone()), |balance| balance += value.clone());
+
+			if Self::total_supply_by_partition(partition.clone()) == T::TokenBalance::sa(0) {
+				// push to TotalPartitons
+				<TotalPartitions<T>>::insert(Self::total_partitions_count, partition.clone());
+				<TotalPartitionsCount<T>>::mutate(|count| count++);
+			}
+			<ToTalSupplyByPartition<T>>::mutate(partition.clone(), |total_supply| total_supply += value);
+		}
+
+		Ok(())
+	}
+
+	// TODO: Retrieve the destination partition from the 'data' field.
+
+   /**
+	* function _getDestinationPartition(bytes32 fromPartition, bytes memory data) internal pure returns(bytes32 toPartition) {
+    * bytes32 changePartitionFlag = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    * bytes32 flag;
+    * assembly {
+    * 	flag := mload(add(data, 32))
+    * }
+    * if(flag == changePartitionFlag) {
+    *   assembly {
+    *     toPartition := mload(add(data, 64))
+    *   }
+    * } else {
+    *  toPartition = fromPartition;
+    * }
+  	* }  
+    */
+
+	/// Retrieve the destination partition from the 'data' field.
+	fn _get_destination_partition(
+		from_partition: bytes32,
+		data: Vec<u8>
+	) -> Result {
+		Ok(())
+	}
+
+	fn _get_default_partitions(token_holder: T::AccountId) -> Vec<bytes32> {
+		if Self::default_partitions_of(token_holder.clone()).len() != 0 {
+			return Self::default_partitions_of(token_holder.clone());
+		} else {
+			Self::token_default_partitions()
 		}
 	}
 

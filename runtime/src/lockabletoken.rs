@@ -25,20 +25,20 @@ pub struct Token<TokenBalance> {
     name: Vec<u8>,
     symbol: Vec<u8>,
     total_supply: TokenBalance,
-    decimal: u32,
+    decimal: u64,
 }
 
 // This module's storage items.
 decl_storage! {
     trait Store for Module<T: Trait> as LockableToken {
-        Owners get(owners): map u32 => T::AccountId;
-        Tokens get(token_details): map u32 => Token<T::TokenBalance>;
-        Balances get(balance_of): map (u32, T::AccountId) => T::TokenBalance;
-        Allowances get(allowance): map (u32, T::AccountId, T::AccountId) => T::TokenBalance;
+        Owners get(owners): map u64 => T::AccountId;
+        Tokens get(token_details): map u64 => Token<T::TokenBalance>;
+        Balances get(balance_of): map (u64, T::AccountId) => T::TokenBalance;
+        Allowances get(allowance): map (u64, T::AccountId, T::AccountId) => T::TokenBalance;
 
         // special interface
-        LockedTokens get(locked_tokens): map (u32, T::AccountId) => T::TokenBalance;
-        TotalLocked get(total_locked): map u32 => T::TokenBalance;
+        LockedTokens get(locked_tokens): map (u64, T::AccountId) => T::TokenBalance;
+        TotalLocked get(total_locked): map u64 => T::TokenBalance;
     }
 }
 
@@ -50,13 +50,13 @@ decl_module! {
         fn deposit_event<T>() = default;
 
         /// Transfers token from the sender to the `to` address.
-        fn transfer(origin, ico_id: u32, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
+        fn transfer(origin, ico_id: u64, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
             let sender = ensure_signed(origin)?;
             Self::transfer_impl(ico_id, sender, to, value)
         }
 
         /// Approve the passed address to spend the specified amount of tokens on the behalf of the message's sender.
-        fn approve(origin, ico_id: u32, spender: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
+        fn approve(origin, ico_id: u64, spender: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
             let owner = ensure_signed(origin)?;
             ensure!(<Balances<T>>::exists((ico_id, owner.clone())), "Account does not own this token");
 
@@ -72,7 +72,7 @@ decl_module! {
         }
 
         /// Transfer tokens from one address to another by allowance
-        fn transfer_from(origin, ico_id: u32, from: T::AccountId, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
+        fn transfer_from(origin, ico_id: u64, from: T::AccountId, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
             // Need to be authorized first
             let caller = ensure_signed(origin)?;
             ensure!(<Allowances<T>>::exists((ico_id, from.clone(), caller.clone())), "Need to be approved first.");
@@ -105,11 +105,11 @@ decl_event!(
 impl<T: Trait> Module<T> {
     pub fn create_token(
         sender: T::AccountId,
-        ico_id: u32,
+        ico_id: u64,
         name: Vec<u8>,
         symbol: Vec<u8>,
         total_supply: T::TokenBalance,
-        decimal: u32,
+        decimal: u64,
     ) -> Result {
         let t = Token {
             name,
@@ -127,7 +127,7 @@ impl<T: Trait> Module<T> {
 
     /// internal transfer function
     pub fn transfer_impl(
-        ico_id: u32,
+        ico_id: u64,
         from: T::AccountId,
         to: T::AccountId,
         value: T::TokenBalance,
@@ -155,7 +155,7 @@ impl<T: Trait> Module<T> {
         Ok(())
     }
 
-    pub fn lock(ico_id: u32, from: T::AccountId, value: T::TokenBalance) -> Result {
+    pub fn lock(ico_id: u64, from: T::AccountId, value: T::TokenBalance) -> Result {
         ensure!(
             <Balances<T>>::exists((ico_id, from.clone())),
             "This account does not own this token"
@@ -179,7 +179,7 @@ impl<T: Trait> Module<T> {
         Ok(())
     }
 
-    pub fn unlock(ico_id: u32, to: T::AccountId, value: Option<T::TokenBalance>) -> Result {
+    pub fn unlock(ico_id: u64, to: T::AccountId, value: Option<T::TokenBalance>) -> Result {
         let balance_to = Self::balance_of((ico_id, to.clone()));
         let tokens = Self::total_locked(ico_id);
         let v = value.unwrap_or(Self::locked_tokens((ico_id, to.clone())));

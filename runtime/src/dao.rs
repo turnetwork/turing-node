@@ -49,11 +49,11 @@ decl_storage! {
         // DAO parameter begin
         MinProposalDeposit get(min_proposal_deposit) config(): Option<T::TokenBalance>;
         LastTimeMinQuorumMet get(last_time_min_quorum_met): Option<T::Moment>;
-        MinQuorumDivisor get(min_quorum_divisor) config(): Option<u32>;
+        MinQuorumDivisor get(min_quorum_divisor) config(): Option<u64>;
         MinProposalDebatePeriod get(min_proposal_debate_period) config(): Option<T::Moment>;
         QuorumHavlingPeriod get(quorum_havling_period) config(): Option<T::Moment>;
         ExecuteProposalPeriod get(execute_proposal_period) config(): Option<T::Moment>;
-        MaxDepositDivisor get(max_deposit_divisor) config(): Option<u32>;
+        MaxDepositDivisor get(max_deposit_divisor) config(): Option<u64>;
         // DAO parameter end
 
         Proposals get(proposals): map u64 => Proposal<T::TokenBalance, T::AccountId, T::Moment, T::Hash>;
@@ -314,7 +314,7 @@ decl_module! {
             && last_time_min_quorum_met < (now.clone() - min_proposal_debate_period)
             && Self::proposal_count() > 1 {
             <LastTimeMinQuorumMet<T>>::put(now);
-            <MinQuorumDivisor<T>>::put(min_quorum_divisor * 2u32);
+            <MinQuorumDivisor<T>>::put(min_quorum_divisor * 2u64);
             return Ok(());
         } else {
             return Err("halvemin_quorum failed.");
@@ -372,7 +372,7 @@ impl<T: Trait> Module<T> {
         balance - Self::sum_of_proposal_deposits()
     }
 
-    fn min_quorum(min_quorum_divisor: u32, value: T::TokenBalance) -> T::TokenBalance {
+    fn min_quorum(min_quorum_divisor: u64, value: T::TokenBalance) -> T::TokenBalance {
         <token::Module<T>>::total_supply() / T::TokenBalance::sa(min_quorum_divisor.into())
             + (value * <token::Module<T>>::total_supply())
                 / (T::TokenBalance::sa(3) * Self::actual_balance())

@@ -33,7 +33,7 @@ decl_storage! {
         // Optional
         Name get(name) config(): Vec<u8>;
         Symbol get(symbol) config(): Vec<u8>;
-        DecimalPlaces get(decimal) config(): u32;
+        DecimalPlaces get(decimal) config(): u64;
 
         // special interface
         LockedDeposits get(locked_deposits): map u64 => T::TokenBalance;
