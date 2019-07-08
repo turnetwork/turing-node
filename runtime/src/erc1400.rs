@@ -60,7 +60,7 @@ decl_storage! {
 		ToTalSupplyByPartition get(total_supply_by_partition): map bytes32 => T::TokenBalance;
 
 		// Mapping from tokenHolder to their partitions.
-		PartitionsOf get(partitions_of): map (T::AccountId, u64) => bytes32;
+		PartitionsOf gDocet(partitions_of): map (T::AccountId, u64) => bytes32;
 		PartitionsOfCount get(partitions_of_count): u64;
 
 		// Mapping from (tokenHolder, partition) to balance of corresponding partition.
@@ -278,7 +278,7 @@ decl_module! {
 		// ---ERC1410 end---
 
 		// ---ERC1400 begin---
-		fn set_document(name: Vec<u8>, uri: Vec<u8>, document_hash: T::Hash) -> Result {
+		fn set_document(name: bytes32, uri: Vec<u8>, document_hash: T::Hash) -> Result {
 			let d = Doc{
 				docURI: uri,
 				docHash: document_hash,
@@ -311,23 +311,40 @@ decl_module! {
 			Ok(())
 		}
 
-		fn issue_by_partition(partition: Vec<u8>, token_holder: T::AccountId, value: T::TokenBalance, data: Vec<u8>) -> Result {
-			Ok(())
+		// TODO: isValidCertificate(data)?
+		/// Issue tokens from a specific partition.
+		fn issue_by_partition(origin, partition: bytes32, token_holder: T::AccountId, value: T::TokenBalance, data: Vec<u8>) -> Result {
+			let sender = ensure_signed(origin)?;
+			Self::_issue_by_partition(partition, sender, token_holder, value, data, "")
 		}
 
-		fn redeem_by_partition(partition: Vec<u8>, value: T::TokenBalance, data: Vec<u8>) -> Result {
-			Ok(())
+		// TODO: isValidCertificate(data)?
+		/// Redeem tokens of a specific partition.
+		fn redeem_by_partition(origin, partition: bytes32, value: T::TokenBalance, data: Vec<u8>) -> Result {
+			let sender = ensure_signed(origin)?;
+			Self::_redeem_by_partition(partition, sender, value, data, "")
 		}
 
+		// TODO: isValidCertificate(operatorData)?
+		/// Redeem tokens of a specific partition.
 		fn operator_redeem_by_partition(
+			origin,
 			partition: Vec<u8>, 
 			token_holder: T::AccountId,
 			value: T::TokenBalance, 
 			operator_data: Vec<u8>
 		) -> Result {
-			Ok(())
+			let sender = ensure_signed(origin)?;
+			ensure!(Self::is_operator_for_partition((
+				partition.clone(), 
+				sender.clone(), 
+				token_holder.clone(),
+				)), "A7: Transfer Blocked - Identity restriction");
+			
+			Self::_redeem_by_partition(partition, sender, token_holder, value, data, operator_data)
 		}
 
+		// TODO: finish this fn
 		fn can_transfer(
 			to: T::AccountId,
 			value: T::TokenBalance,
@@ -337,6 +354,7 @@ decl_module! {
 		}
 
 		// TODO: finish this fn
+		/// Know the reason on success or failure based on the EIP-1066 application-specific status codes.
 		fn can_transfer_by_partition(
 			from: T::AccountId,
 			to: T::AccountId,
@@ -344,6 +362,7 @@ decl_module! {
 			value: T::TokenBalance,
 			data: Vec<u8>
 		) -> Result {
+
 			Ok(())
 		}
 		// ERC1400 end
@@ -682,6 +701,53 @@ impl<T: Trait> Module<T> {
 			Self::token_default_partitions()
 		}
 	}
-
 	// ---ERC1410 end---
+
+	// ---ERC1400 begin---
+	fn _redeem_by_partition(
+		from_partition: bytes32,
+		operator: T::AccountId,
+		from: T::AccountId,
+		value: T::TokenBalance,
+		data: Vec<u8>,
+		operator_data: Vec<u8>
+	) -> Result {
+		ensure!(Self::balance_of_by_partition((from.clone(), from_partition.clone())) >= value.clone(), "A4: Transfer Blocked - Sender balance insufficient");
+
+		Self::_remove_token_from_partition(from.clone(), from_partition.clone(), value.clone());
+		Self::_redeem(from_partition.clone(), operator.clone(), from.clone(), value.clone(), data.clone(), operator_data.clone());
+
+		Self::deposit_event(RawEvent::RedeemedByPartition(from_partition, operator, from, value, data, operator_data));
+
+		Ok(())
+	}
+
+	// TODO: returns (byte, bytes32, bytes32) ?
+	fn _can_transfer(
+		partition: bytes32,
+		operator: T::AccountId,
+		from: T::AccountId,
+		to: T::AccountId,
+		value: T::TokenBalance,
+		data: Vec<u8>,
+		operator_data: Vec<u8>
+	) -> Result {
+		Ok(())
+	}
+
+	fn _issue_by_partition(
+		to_partition: bytes32,
+		operator: T::AccountId,
+		to: T::AccountId,
+		value: T::TokenBalance,
+		data: Vec<u8>,
+		operator_data: Vec<u8>
+	) -> Result {
+		Self::_issue(to_partition.clone(), operator.clone(), to.clone(), value.clone(), data.clone(), operator_data.clone());
+		Self::_add_token_to_partition(to.clone(), to_partition.clone(), value.clone());
+
+		Self::deposit_event(RawEvent::IssuedByPartition(to_partition, operator, to, value, data, operator_data));
+		Ok(())
+	}
+	// ---ERC1400 end---
 }
