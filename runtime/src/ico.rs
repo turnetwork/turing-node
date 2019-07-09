@@ -25,15 +25,15 @@ pub struct Crowdsale<AccountId, TokenBalance, Moment> {
     deadline: Moment,
     funding_goal_reached: bool,
     crowdsale_closed: bool,
-    price: u32,
+    price: u64,
 }
 
 const PAY_ID: [u8; 8] = *b"exchange";
 
 decl_storage! {
     trait Store for Module<T: Trait> as Ico {
-        Crowdsales get(crowdsales) : map u32 => Crowdsale<T::AccountId, T::TokenBalance, T::Moment>;
-        CrowdsaleCount get(crowdsale_count) : u32 = 0;
+        Crowdsales get(crowdsales) : map u64 => Crowdsale<T::AccountId, T::TokenBalance, T::Moment>;
+        CrowdsaleCount get(crowdsale_count) : u64 = 0;
     }
 }
 
@@ -44,15 +44,15 @@ decl_event!(
         AccountId = <T as system::Trait>::AccountId,
         TokenBalance = <T as token::Trait>::TokenBalance,
     {
-        CreateCrowdsale(u32, AccountId),
+        CreateCrowdsale(u64, AccountId),
         // crowdsale_id, recipient, totalAmountRaised
-        GoalReached(u32, AccountId, TokenBalance),
+        GoalReached(u64, AccountId, TokenBalance),
         // crowdsale_id, backer, amount, isContribution
-        FundUnlock(u32, AccountId, Option<TokenBalance>),
-        FundLock(u32, AccountId, TokenBalance),
+        FundUnlock(u64, AccountId, Option<TokenBalance>),
+        FundLock(u64, AccountId, TokenBalance),
 
-        PayToken(u32, AccountId, TokenBalance),
-        Withdraw(u32, AccountId, TokenBalance),
+        PayToken(u64, AccountId, TokenBalance),
+        Withdraw(u64, AccountId, TokenBalance),
     }
 );
 
@@ -66,11 +66,11 @@ decl_module! {
         if_successful_send_to: T::AccountId,
         funding_goal_in_turs: T::TokenBalance,
         duration_in_seconds: T::Moment,
-        price: u32,
+        price: u64,
         token_name: Vec<u8>,
         token_symbol: Vec<u8>,
         token_total_supply: T::TokenBalance,
-        token_decimal: u32) -> Result {
+        token_decimal: u64) -> Result {
             let sender = ensure_signed(origin)?;
 
             let c = Crowdsale{
@@ -96,7 +96,7 @@ decl_module! {
     }
 
     /// exchange balance to tokens
-    fn pay(origin, crowdsale_id: u32, value: T::TokenBalance) -> Result{
+    fn pay(origin, crowdsale_id: u64, value: T::TokenBalance) -> Result{
         let sender = ensure_signed(origin)?;
 
         let c = Self::crowdsales(crowdsale_id);
@@ -125,7 +125,7 @@ decl_module! {
         Ok(())
     }
 
-    fn invest(origin, crowdsale_id: u32, amount: T::TokenBalance) -> Result {
+    fn invest(origin, crowdsale_id: u64, amount: T::TokenBalance) -> Result {
         let sender = ensure_signed(origin)?;
 
         let mut c = Self::crowdsales(crowdsale_id);
@@ -143,7 +143,7 @@ decl_module! {
         lock_result
     }
 
-    fn distribute(origin, crowdsale_id: u32) -> Result {
+    fn distribute(origin, crowdsale_id: u64) -> Result {
         let sender = ensure_signed(origin)?;
         ensure!(Self::check_goal_reached(crowdsale_id).is_ok(), "check goal reached failed");
 
@@ -163,7 +163,7 @@ decl_module! {
         Ok(())
     }
 
-    fn withdraw(origin, crowdsale_id: u32) -> Result {
+    fn withdraw(origin, crowdsale_id: u64) -> Result {
         let sender = ensure_signed(origin)?;
 
         let c = Self::crowdsales(crowdsale_id);
@@ -191,7 +191,7 @@ decl_module! {
 }
 
 impl<T: Trait> Module<T> {
-    fn check_goal_reached(crowdsale_id: u32) -> Result {
+    fn check_goal_reached(crowdsale_id: u64) -> Result {
         let mut c = Self::crowdsales(crowdsale_id);
         if c.crowdsale_closed {
             return Ok(());

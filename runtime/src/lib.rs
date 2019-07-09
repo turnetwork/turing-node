@@ -67,6 +67,7 @@ pub type Nonce = u64;
 
 mod dao;
 mod daotoken;
+mod erc1400;
 mod erc20;
 mod erc721;
 mod ico;
@@ -297,6 +298,11 @@ impl ico::Trait for Runtime {
     type Currency = Balances;
 }
 
+impl erc1400::Trait for Runtime {
+    type Event = Event;
+    type TokenBalance = u128;
+}
+
 construct_runtime!(
 	pub enum Runtime with Log(InternalLog: DigestItem<Hash, AuthorityId, AuthoritySignature>) where
 		Block = Block,
@@ -328,6 +334,7 @@ construct_runtime!(
 		Dao: dao::{Module, Call, Storage, Event<T>, Config<T>},
 		LockableToken: lockabletoken::{Module, Call, Storage, Event<T>},
 		Ico: ico::{Module, Call, Storage, Event<T>},
+        ERC1400: erc1400::{Module, Call, Storage, Event<T>, Config<T>},
 	}
 );
 
