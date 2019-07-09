@@ -8,7 +8,7 @@ use turing_node_runtime::{
     AccountId, BalancesConfig, ConsensusConfig, ContractConfig, CouncilSeatsConfig,
     CouncilVotingConfig, DaoConfig, DaoTokenConfig, DemocracyConfig, ERC20Config, ERC721Config,
     GenesisConfig, GrandpaConfig, IndicesConfig, Perbill, Permill, SessionConfig, StakerStatus,
-    StakingConfig, SudoConfig, TimestampConfig, TreasuryConfig,
+    StakingConfig, SudoConfig, TimestampConfig, TreasuryConfig, ERC1400Config
 };
 
 // Note this is the URL for the telemetry server
@@ -259,6 +259,12 @@ fn testnet_genesis(
 			execute_proposal_period: 10 * DAYS,
 			max_deposit_divisor: 100,
 		}),
+		erc1400: Some(ERC1400Config {
+			owner: account_key("Alice"),
+			total_supply: 21000000,
+			name: "ABMatrix ERC20 Token".as_bytes().into(),
+			symbol: "ABT20".as_bytes().into(),
+		}),
 	}
 }
 
@@ -439,6 +445,12 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
 			quorum_havling_period: 25 * WEEKS,
 			execute_proposal_period: 10 * DAYS,
 			max_deposit_divisor: 100,
+		}),
+		erc1400: Some(ERC1400Config {
+			owner: endowed_accounts[0].clone(),
+			total_supply: 21000000,
+			name: "ABMatrix ERC20 Token".as_bytes().into(),
+			symbol: "ABT20".as_bytes().into(),
 		}),
 	}
 }
