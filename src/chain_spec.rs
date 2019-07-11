@@ -6,9 +6,9 @@ use substrate_service;
 use telemetry::TelemetryEndpoints;
 use turing_node_runtime::{
     AccountId, BalancesConfig, ConsensusConfig, ContractConfig, CouncilSeatsConfig,
-    CouncilVotingConfig, DaoConfig, DaoTokenConfig, DemocracyConfig, ERC20Config, ERC721Config,
-    GenesisConfig, GrandpaConfig, IndicesConfig, Perbill, Permill, SessionConfig, StakerStatus,
-    StakingConfig, SudoConfig, TimestampConfig, TreasuryConfig, ERC1400Config
+    CouncilVotingConfig, DaoConfig, DaoTokenConfig, DemocracyConfig, ERC1400Config, ERC20Config,
+    ERC721Config, GenesisConfig, GrandpaConfig, IndicesConfig, Perbill, Permill, SessionConfig,
+    StakerStatus, StakingConfig, SudoConfig, TimestampConfig, TreasuryConfig,
 };
 
 // Note this is the URL for the telemetry server
@@ -50,6 +50,19 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, Author
         account_key(seed),
         authority_key(seed),
     )
+}
+
+pub type Bytes32 = [u8; 32];
+
+fn fix_to_bytes32(partition: &str) -> Bytes32 {
+	let mut p :Bytes32 = Default::default();
+    let mut p_vec = partition.as_bytes().to_vec();
+	let fix_len = 32 - p_vec.len();
+    for _ in 0..fix_len {
+		p_vec.push(0);
+	}
+    p.copy_from_slice(&p_vec);
+	p
 }
 
 impl Alternative {
@@ -264,6 +277,11 @@ fn testnet_genesis(
 			total_supply: 21000000,
 			name: "ABMatrix ERC20 Token".as_bytes().into(),
 			symbol: "ABT20".as_bytes().into(),
+			token_default_partitions: vec![
+				fix_to_bytes32("Reserved"),
+				fix_to_bytes32("Issued"),
+				fix_to_bytes32("Locked")
+			],
 		}),
 	}
 }
@@ -451,6 +469,11 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
 			total_supply: 21000000,
 			name: "ABMatrix ERC20 Token".as_bytes().into(),
 			symbol: "ABT20".as_bytes().into(),
+			token_default_partitions: vec![
+				fix_to_bytes32("Reserved"),
+				fix_to_bytes32("Issued"),
+				fix_to_bytes32("Locked")
+			],
 		}),
 	}
 }
