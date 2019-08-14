@@ -6,7 +6,7 @@ use substrate_service;
 use telemetry::TelemetryEndpoints;
 use turing_node_runtime::{
     AccountId, BalancesConfig, ConsensusConfig, ContractConfig, CouncilSeatsConfig,
-    CouncilVotingConfig, DaoConfig, DaoTokenConfig, DemocracyConfig, ERC1400Config, ERC20Config,
+    CouncilVotingConfig, DaoConfig, DaoTokenConfig, DemocracyConfig, ERC1400Config,
     ERC721Config, GenesisConfig, GrandpaConfig, IndicesConfig, Perbill, Permill, SessionConfig,
     StakerStatus, StakingConfig, SudoConfig, TimestampConfig, TreasuryConfig,
 };
@@ -55,14 +55,14 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, Author
 pub type Bytes32 = [u8; 32];
 
 fn fix_to_bytes32(partition: &str) -> Bytes32 {
-	let mut p :Bytes32 = Default::default();
+    let mut p: Bytes32 = Default::default();
     let mut p_vec = partition.as_bytes().to_vec();
-	let fix_len = 32 - p_vec.len();
+    let fix_len = 32 - p_vec.len();
     for _ in 0..fix_len {
-		p_vec.push(0);
-	}
+        p_vec.push(0);
+    }
     p.copy_from_slice(&p_vec);
-	p
+    p
 }
 
 impl Alternative {
@@ -139,7 +139,7 @@ impl Alternative {
     }
 }
 
-const MILLICENTS: u128 = 1_000_000_000;
+const MILLICENTS: u128 = 1;
 const CENTS: u128 = 1_000 * MILLICENTS; // assume this is worth about a cent.
 const DOLLARS: u128 = 100 * CENTS;
 
@@ -244,13 +244,6 @@ fn testnet_genesis(
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
 		}),
-		erc20: Some(ERC20Config {
-			// set Alice as owner
-			owner: account_key("Alice"),
-			total_supply: 21000000,
-			name: "ABMatrix ERC20 Token".as_bytes().into(),
-			symbol: "ABT20".as_bytes().into(),
-		}),
 		erc721: Some(ERC721Config {
 			_genesis_phantom_data: PhantomData,
 			name: "ABMatrix ERC721 Token".as_bytes().into(),
@@ -295,6 +288,7 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
 
     let initial_authorities: Vec<(AccountId, AccountId, AuthorityId)> = vec![
         (
+            // Alice
             hex!["889bb56aeb50bedf6cb59943c6a7bde3e7436922a5b67d0dddafa1120674e459"]
                 .unchecked_into(), // 5F9pdBTUoEV3UCqxDZhGzkLsvWUwTTFd83Y8wPubw9jAAbQX
             hex!["56d9c6e3c808e58778c06d120da724c73311e2b3aa66715bb4200710e03f444a"]
@@ -303,6 +297,7 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
                 .unchecked_into(), // 5EusrZtoVy2KJWsqTiwuizjUXX1kmgJFeZM6FdguPkdLPBEL
         ),
         (
+            // Bob
             hex!["a21f0be38ba6b85f3d37b45976ae94cb537b4f854e5c23a070dba5efc2450224"]
                 .unchecked_into(), // 5FjGqWbnhdZVfNJeCff3P1gpvuLJCTztUrjfTxxL6546F282
             hex!["b6d913612c513f1f1e29d3d2964f8e6c890f47b7aa83b1e5d52b78a234a88537"]
@@ -311,6 +306,7 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
                 .unchecked_into(), // 5EihsxLFA7DAiZ6nx381hvrGjuESHNVjGRcvkxhWbw4ECkVm
         ),
         (
+            // Charlie
             hex!["f4dcf18a7091236034337af748a1bde3b4b725cc0a869ce51cb5526270615606"]
                 .unchecked_into(), // 5HbmB6q13VeCevJzG65Gh4Uim8X6mCjEdUusWzu76jCK6Y3t
             hex!["4e556650785a8fa5f4d20d108d6110fd470cb6e2d2e3c092ab831c28e9a6ee1f"]
@@ -319,6 +315,7 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
                 .unchecked_into(), // 5FGcytsmKbhWeqrrDV8RmfLShC5EuaJzVjvW39LyyBLRtyqy
         ),
         (
+            // Dave
             hex!["14509c5ee333dc714caf3f55b58b407b0d42c2fdd61c9c40a19ed28d88f49c1b"]
                 .unchecked_into(), // 5CXLm7AiMrpjWzJfmQ79JMA2LFnrEFkUcbGNAyB2WZ5U3KgY
             hex!["64b9a4fca0c64f1f27933ed45be0aba5c9495b77c5f1225c556ba7897a3df42c"]
@@ -437,12 +434,6 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
 		}),
 		grandpa: Some(GrandpaConfig {
 			authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
-		}),
-		erc20: Some(ERC20Config {
-			owner: endowed_accounts[0].clone(),
-			total_supply: 21000000,
-			name: "ABMatrix ERC20 Token".as_bytes().into(),
-			symbol: "ABT20".as_bytes().into(),
 		}),
 		erc721: Some(ERC721Config {
 			_genesis_phantom_data: PhantomData,

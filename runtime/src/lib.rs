@@ -114,8 +114,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("contract-node"),
     impl_name: create_runtime_str!("contract-node"),
     authoring_version: 3,
-    spec_version: 4,
-    impl_version: 4,
+    spec_version: 6,
+    impl_version: 6,
     apis: RUNTIME_API_VERSIONS,
 };
 
@@ -272,7 +272,7 @@ impl finality_tracker::Trait for Runtime {
 /// Used for the module template in `./erc20.rs`
 impl erc20::Trait for Runtime {
     type Event = Event;
-    type Balance_in_Token = u128;
+    type TokenBalance = u128;
 }
 
 impl erc721::Trait for Runtime {
@@ -328,7 +328,7 @@ construct_runtime!(
 		Contract: contract::{Module, Call, Storage, Config<T>, Event<T>},
 		Sudo: sudo,
 		// Used for the module erc20 in `./erc20.rs`
-		ERC20: erc20::{Module, Call, Storage, Event<T>, Config<T>},
+		ERC20: erc20::{Module, Call, Storage, Event<T>},
 		ERC721: erc721::{Module, Call, Storage, Event<T>, Config<T>},
 		DaoToken: daotoken::{Module, Call, Storage, Event<T>, Config<T>},
 		Dao: dao::{Module, Call, Storage, Event<T>, Config<T>},

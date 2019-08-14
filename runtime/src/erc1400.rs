@@ -54,8 +54,6 @@ pub type Bytes32 = [u8; 32];
 //  * 0xA8	Transfer Blocked - Token restriction
 //  * 0xA9	Transfer Blocked - Token granularity
 //  */
-
-
 // This module's storage items.
 decl_storage! {
     trait Store for Module<T: Trait> as ERC1400 {
@@ -408,7 +406,7 @@ decl_module! {
             data: Vec<u8>
         ) -> Result {
             let sender = ensure_signed(origin)?;
-            
+
             for i in 0..Self::partitions_of_count(sender.clone()) {
                     if let Err(_) = Self::_can_transfer(Self::partitions_of((sender.clone(), i)), sender.clone(), sender.clone(), to.clone(), value, data.clone(), "".into()) {
                         continue;
@@ -488,7 +486,7 @@ decl_module! {
         fn set_partition_controllers(origin, partition: Bytes32, operators: Vec<T::AccountId>) -> Result {
             let sender = ensure_signed(origin)?;
             ensure!(sender.clone() == Self::owner(), "A7: Transfer Blocked - Identity restriction");
-            
+
             Self::_set_partition_controllers(partition, operators)
         }
 
@@ -547,7 +545,7 @@ decl_module! {
             let new_allowance = allowance.checked_sub(&value).ok_or("underflow in subtracting allowance.")?;
             <Allowances<T>>::insert((from.clone(), caller.clone()), new_allowance);
             Self::deposit_event(RawEvent::Approval(from.clone(), caller.clone(), value));
-            
+
             Self::_transfer_by_default_partitions(caller, from, to, value, "".into(), "".into())
         }
 
@@ -572,7 +570,7 @@ decl_event!(
         Checked(AccountId),
 
         // ---Certificate end---
-        
+
         // ---ERC777 begin---
         // operator, from, to, value, data, operator_data
         TransferWithData(AccountId, AccountId, AccountId, Balance, Vec<u8>, Vec<u8>),
@@ -601,7 +599,7 @@ decl_event!(
 
         // Bytes32 indexed _partition, address indexed _operator, address indexed _tokenHolder
         AuthorizedOperatorByPartition(Bytes32, AccountId, AccountId),
-        
+
         // Bytes32 indexed _partition, address indexed _operator, address indexed _tokenHolder
         RevokedOperatorByPartition(Bytes32, AccountId, AccountId),
         // ---ERC1410 end---
@@ -647,7 +645,7 @@ impl<T: Trait> Module<T> {
         Ok(())
     }
 
-    fn _set_certificate_signer(operator: T::AccountId, authorized: bool) -> Result{
+    fn _set_certificate_signer(operator: T::AccountId, authorized: bool) -> Result {
         <CertificateSigners<T>>::insert(operator, authorized);
         Ok(())
     }
@@ -670,12 +668,19 @@ impl<T: Trait> Module<T> {
         to: T::AccountId,
         value: T::TokenBalance,
         data: Vec<u8>,
-        operator_data: Vec<u8>
+        operator_data: Vec<u8>,
     ) -> Result {
-        ensure!(Self::_is_multiple(value), "A9: Transfer Blocked - Token granularity");
-        
-        <TotalSupply<T>>::mutate(|total_supply| {*total_supply = *total_supply + value;});
-        <Balances<T>>::mutate(to.clone(), |balance| {*balance += value;});
+        ensure!(
+            Self::_is_multiple(value),
+            "A9: Transfer Blocked - Token granularity"
+        );
+
+        <TotalSupply<T>>::mutate(|total_supply| {
+            *total_supply = *total_supply + value;
+        });
+        <Balances<T>>::mutate(to.clone(), |balance| {
+            *balance += value;
+        });
 
         Self::deposit_event(RawEvent::Issued(operator, to, value, data, operator_data));
         Ok(())
@@ -804,7 +809,9 @@ impl<T: Trait> Module<T> {
             to_partition = Self::_get_destination_partition(partition.clone(), data.clone());
         }
 
-        if let Err(r) = Self::_remove_token_from_partition(from.clone(), partition.clone(), value.clone()) {
+        if let Err(r) =
+            Self::_remove_token_from_partition(from.clone(), partition.clone(), value.clone())
+        {
             return Err(r);
         }
         if let Err(r) = Self::_transfer_with_data(
@@ -819,7 +826,9 @@ impl<T: Trait> Module<T> {
         ) {
             return Err(r);
         }
-        if let Err(r) = Self::_add_token_to_partition(to.clone(), to_partition.clone(), value.clone()) {
+        if let Err(r) =
+            Self::_add_token_to_partition(to.clone(), to_partition.clone(), value.clone())
+        {
             return Err(r);
         }
 
@@ -943,7 +952,7 @@ impl<T: Trait> Module<T> {
 
     /// Retrieve the destination partition from the 'data' field.
     fn _get_destination_partition(from_partition: Bytes32, data: Vec<u8>) -> Bytes32 {
-        let change_partition_flag: Bytes32 = [255;32];
+        let change_partition_flag: Bytes32 = [255; 32];
         let mut flag: Bytes32 = Default::default();
         let mut to_partition: Bytes32 = Default::default();
         flag.copy_from_slice(&data[0..32]);
@@ -982,10 +991,13 @@ impl<T: Trait> Module<T> {
         to: T::AccountId,
         value: T::TokenBalance,
         data: Vec<u8>,
-        operator_data: Vec<u8>
+        operator_data: Vec<u8>,
     ) -> Result {
         let partitions = Self::_get_default_partitions(from.clone());
-        ensure!(partitions.len() != 0, "A8: Transfer Blocked - Token restriction");
+        ensure!(
+            partitions.len() != 0,
+            "A8: Transfer Blocked - Token restriction"
+        );
 
         let mut remaining_value = value;
 
@@ -1029,7 +1041,7 @@ impl<T: Trait> Module<T> {
         Ok(())
     }
     // ---ERC1410 end---
-  
+
     // ---ERC1400 begin---
     /// Redeem tokens from a default partitions.
     // TODO: check the logic
@@ -1144,7 +1156,9 @@ impl<T: Trait> Module<T> {
             return Err("A7");
         }
 
-        if Self::balance_of(from.clone()) < value.clone() || Self::balance_of_by_partition((from.clone(), partition.clone())) < value {
+        if Self::balance_of(from.clone()) < value.clone()
+            || Self::balance_of_by_partition((from.clone(), partition.clone())) < value
+        {
             return Err("A4");
         }
 
@@ -1172,7 +1186,9 @@ impl<T: Trait> Module<T> {
         ) {
             return Err(r);
         }
-        if let Err(r) = Self::_add_token_to_partition(to.clone(), to_partition.clone(), value.clone()) {
+        if let Err(r) =
+            Self::_add_token_to_partition(to.clone(), to_partition.clone(), value.clone())
+        {
             return Err(r);
         }
 
@@ -1189,7 +1205,7 @@ impl<T: Trait> Module<T> {
     // ---ERC1400 end---
 
     // ---ERC20 compatibility begin---
-    fn _set_whitelisted(token_holder: T::AccountId, authorized: bool) -> Result{
+    fn _set_whitelisted(token_holder: T::AccountId, authorized: bool) -> Result {
         <Whitelisted<T>>::mutate(token_holder, |w| *w = authorized);
         Ok(())
     }
