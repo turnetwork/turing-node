@@ -153,6 +153,7 @@ fn testnet_genesis(
     const MINUTES: u64 = 60 / SECS_PER_BLOCK;
     const HOURS: u64 = MINUTES * 60;
     const DAYS: u64 = HOURS * 24;
+	const WEEKS: u64 = DAYS * 7;
 
     const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
     const STASH: u128 = 100 * DOLLARS;
@@ -344,6 +345,7 @@ fn turing_testnet_config_genesis() -> GenesisConfig {
     const MINUTES: u64 = 60 / SECS_PER_BLOCK;
     const HOURS: u64 = MINUTES * 60;
     const DAYS: u64 = HOURS * 24;
+	const WEEKS: u64 = DAYS * 7;
 
     const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
     const STASH: u128 = 100 * DOLLARS;
