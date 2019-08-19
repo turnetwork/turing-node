@@ -176,7 +176,7 @@ fn testnet_genesis(
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().map(|x| x.1.clone()).collect(),
-			session_length: 5 * MINUTES,
+			session_length: 1 * MINUTES,
 			keys: initial_authorities.iter().map(|x| (x.1.clone(), x.2.clone())).collect::<Vec<_>>(),
 		}),
 		staking: Some(StakingConfig {
@@ -186,7 +186,7 @@ fn testnet_genesis(
 			current_session_reward: 0,
 			validator_count: 5,
 			sessions_per_era: 12,
-			bonding_duration: 60 * MINUTES,
+			bonding_duration: 6 * MINUTES,
 			offline_slash_grace: 4,
 			minimum_validator_count: 2,
 			stakers: initial_authorities.iter().map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)).collect(),

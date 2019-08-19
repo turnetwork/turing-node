@@ -1,3 +1,0 @@
-**/target/*
-**/*.rs.bk
-!./target/release/turing-node

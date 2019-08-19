@@ -1,7 +1,7 @@
 /// A simple implementation of the ERC20
 use parity_codec::{Codec, Decode, Encode};
 use rstd::prelude::Vec;
-use runtime_primitives::traits::{As, CheckedAdd, CheckedSub, Member, SimpleArithmetic};
+use runtime_primitives::traits::{Hash, As, CheckedAdd, CheckedSub, Member, SimpleArithmetic};
 use support::{
     decl_event, decl_module, decl_storage, dispatch::Result, ensure, Parameter, StorageMap, StorageValue
 };
@@ -32,11 +32,14 @@ pub struct Token<TokenBalance> {
 // This module's storage items.
 decl_storage! {
     trait Store for Module<T: Trait> as ERC20 {
-        Owners get(owners): map u64 => T::AccountId;
-        TokenID get(token_id): u64 = 0;
-        Tokens get(token_details): map u64 => Token<T::TokenBalance>;
-        Balances get(balance_of): map (u64, T::AccountId) => T::TokenBalance;
-        Allowances get(allowance): map (u64, T::AccountId, T::AccountId) => T::TokenBalance;
+        Owners get(owners): map T::Hash => T::AccountId;
+        TokenCount get(token_count): u64 = 0;
+        Tokens get(token_details): map T::Hash => Token<T::TokenBalance>;
+        Balances get(balance_of): map (T::Hash, T::AccountId) => T::TokenBalance;
+        Allowances get(allowance): map (T::Hash, T::AccountId, T::AccountId) => T::TokenBalance;
+
+        TokenHash get(token_hash): map u64 => T::Hash;
+        TokenIndex : map T::Hash => u64;
     }
 }
 
@@ -48,41 +51,41 @@ decl_module! {
         fn deposit_event<T>() = default;
 
         /// Transfers token from the sender to the `to` address.
-        fn transfer(origin, id: u64, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
+        fn transfer(origin, tokenHash: T::Hash, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
             let sender = ensure_signed(origin)?;
-            Self::transfer_impl(id, sender, to, value)
+            Self::transfer_impl(tokenHash, sender, to, value)
         }
 
         /// Approve the passed address to spend the specified amount of tokens on the behalf of the message's sender.
-        fn approve(origin, id: u64, spender: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
+        fn approve(origin, tokenHash: T::Hash, spender: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
             let owner = ensure_signed(origin)?;
 
-            ensure!(<Balances<T>>::exists((id, owner.clone())), "Account does not own this token");
+            ensure!(<Balances<T>>::exists((tokenHash.clone(), owner.clone())), "Account does not own this token");
 
             ensure!(spender != owner, "Owner is implicitly approved");
 
-            let allowance = Self::allowance((id, owner.clone(), spender.clone()));
+            let allowance = Self::allowance((tokenHash.clone(), owner.clone(), spender.clone()));
             let new_allowance = allowance.checked_add(&value).ok_or("overflow in adding allowance")?;
 
-            <Allowances<T>>::insert((id, owner.clone(), spender.clone()), new_allowance);
+            <Allowances<T>>::insert((tokenHash.clone(), owner.clone(), spender.clone()), new_allowance);
 
-            Self::deposit_event(RawEvent::Approval(owner, spender, value));
+            Self::deposit_event(RawEvent::Approval(tokenHash, owner, spender, value));
             Ok(())
         }
 
         /// Transfer tokens from one address to another by allowance
-        fn transfer_from(origin, id: u64, from: T::AccountId, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
+        fn transfer_from(origin, tokenHash: T::Hash, from: T::AccountId, to: T::AccountId, #[compact] value: T::TokenBalance) -> Result {
             // Need to be authorized first
             let caller = ensure_signed(origin)?;
-            ensure!(<Allowances<T>>::exists((id, from.clone(), caller.clone())), "Need to be approved first.");
-            let allowance = Self::allowance((id ,from.clone(), caller.clone()));
+            ensure!(<Allowances<T>>::exists((tokenHash.clone(), from.clone(), caller.clone())), "Need to be approved first.");
+            let allowance = Self::allowance((tokenHash.clone() ,from.clone(), caller.clone()));
             ensure!(allowance >= value, "Not enough allowance.");
 
             let new_allowance = allowance.checked_sub(&value).ok_or("underflow in subtracting allowance.")?;
-            <Allowances<T>>::insert((id, from.clone(), caller.clone()), new_allowance);
+            <Allowances<T>>::insert((tokenHash.clone(), from.clone(), caller.clone()), new_allowance);
 
-            Self::deposit_event(RawEvent::Approval(from.clone(), caller.clone(), value));
-            Self::transfer_impl(id, from, to, value)
+            Self::deposit_event(RawEvent::Approval(tokenHash.clone(), from.clone(), caller.clone(), new_allowance));
+            Self::transfer_impl(tokenHash, from, to, value)
         }
 
         fn create_token(
@@ -94,18 +97,24 @@ decl_module! {
             ) -> Result {
             let sender = ensure_signed(origin)?;
             let t = Token {
-                name,
+                name: name.clone(),
                 symbol,
                 total_supply,
                 decimal,
             };
-            let id = Self::token_id();
+            let id = Self::token_count();
+            let hash = (sender.clone(), id, name).using_encoded(<T as system::Trait>::Hashing::hash);
 
-            <Balances<T>>::insert((id, sender.clone()), total_supply);
-            <Tokens<T>>::insert(id, t);
-            <Owners<T>>::insert(id, sender);
+            <Balances<T>>::insert((hash.clone(), sender.clone()), total_supply);
+            <Tokens<T>>::insert(hash.clone(), t);
+            <Owners<T>>::insert(hash.clone(), sender.clone());
 
-            <TokenID<T>>::mutate(|i| *i += 1);
+            
+            <TokenIndex<T>>::insert(hash.clone(), id);
+            <TokenHash<T>>::insert(id, hash.clone());
+
+            <TokenCount<T>>::mutate(|i| *i += 1);
+            Self::deposit_event(RawEvent::CreateToken(sender, hash));
             Ok(())
         }
     }
@@ -116,9 +125,11 @@ decl_event!(
     where
         AccountId = <T as system::Trait>::AccountId,
         Balance = <T as self::Trait>::TokenBalance,
+        Hash = <T as system::Trait>::Hash,
     {
-        Transfer(AccountId, AccountId, Balance),
-        Approval(AccountId, AccountId, Balance),
+        Transfer(Hash, AccountId, AccountId, Balance),
+        Approval(Hash, AccountId, AccountId, Balance),
+        CreateToken(AccountId, Hash),
     }
 );
 
@@ -126,31 +137,31 @@ decl_event!(
 // if marked public, accessible by other modules
 impl<T: Trait> Module<T> {
     pub fn transfer_impl(
-        id: u64,
+        tokenHash: T::Hash,
         from: T::AccountId,
         to: T::AccountId,
         value: T::TokenBalance,
     ) -> Result {
         ensure!(
-            <Balances<T>>::exists((id, from.clone())),
+            <Balances<T>>::exists((tokenHash.clone(), from.clone())),
             "Account does not own this token"
         );
-        let balance_from = Self::balance_of((id, from.clone()));
+        let balance_from = Self::balance_of((tokenHash.clone(), from.clone()));
         ensure!(balance_from >= value, "Not enough balance.");
 
         // update the balances
         let new_balance_from = balance_from
             .checked_sub(&value)
             .ok_or("underflow in subtracting balance")?;
-        let balance_to = Self::balance_of((id, to.clone()));
+        let balance_to = Self::balance_of((tokenHash.clone(), to.clone()));
         let new_balance_to = balance_to
             .checked_add(&value)
             .ok_or("overflow in adding balance")?;
 
-        <Balances<T>>::insert((id, from.clone()), new_balance_from);
-        <Balances<T>>::insert((id, to.clone()), new_balance_to);
+        <Balances<T>>::insert((tokenHash.clone(), from.clone()), new_balance_from);
+        <Balances<T>>::insert((tokenHash.clone(), to.clone()), new_balance_to);
 
-        Self::deposit_event(RawEvent::Transfer(from, to, value));
+        Self::deposit_event(RawEvent::Transfer(tokenHash, from, to, value));
         Ok(())
     }
 }
