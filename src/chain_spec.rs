@@ -139,23 +139,24 @@ impl Alternative {
     }
 }
 
-const MILLICENTS: u128 = 1;
-const CENTS: u128 = 1_000 * MILLICENTS; // assume this is worth about a cent.
-const DOLLARS: u128 = 100 * CENTS;
-
-const SECS_PER_BLOCK: u64 = 10;
-const MINUTES: u64 = 60 / SECS_PER_BLOCK;
-const HOURS: u64 = MINUTES * 60;
-const DAYS: u64 = HOURS * 24;
-const WEEKS: u64 = DAYS * 7;
-
-const STASH: u128 = 100 * DOLLARS;
-
 fn testnet_genesis(
     initial_authorities: Vec<(AccountId, AccountId, AuthorityId)>,
     endowed_accounts: Vec<AccountId>,
     root_key: AccountId,
 ) -> GenesisConfig {
+	
+	const MILLICENTS: u128 = 1_000_000_000;
+    const CENTS: u128 = 1_000 * MILLICENTS; // assume this is worth about a cent.
+    const DOLLARS: u128 = 100 * CENTS;
+
+    const SECS_PER_BLOCK: u64 = 6;
+    const MINUTES: u64 = 60 / SECS_PER_BLOCK;
+    const HOURS: u64 = MINUTES * 60;
+    const DAYS: u64 = HOURS * 24;
+
+    const ENDOWMENT: u128 = 10_000_000 * DOLLARS;
+    const STASH: u128 = 100 * DOLLARS;
+
     GenesisConfig {
 		consensus: Some(ConsensusConfig {
 			code: include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/turing_node_runtime_wasm.compact.wasm").to_vec(),
@@ -165,14 +166,19 @@ fn testnet_genesis(
 		balances: Some(BalancesConfig {
 			transaction_base_fee: 1 * CENTS,
 			transaction_byte_fee: 10 * MILLICENTS,
-			balances: endowed_accounts.iter().cloned().map(|k|(k.clone(), 1 << 60)).collect(),
+			balances: endowed_accounts.iter().cloned()
+				.map(|k| (k, ENDOWMENT))
+				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+				.collect(),
 			existential_deposit: 1 * DOLLARS,
 			transfer_fee: 1 * CENTS,
 			creation_fee: 1 * CENTS,
 			vesting: vec![],
 		}),
 		indices: Some(IndicesConfig {
-			ids: endowed_accounts.clone(),
+			ids: endowed_accounts.iter().cloned()
+				.chain(initial_authorities.iter().map(|x| x.0.clone()))
+				.collect::<Vec<_>>(),
 		}),
 		session: Some(SessionConfig {
 			validators: initial_authorities.iter().map(|x| x.1.clone()).collect(),
@@ -184,11 +190,11 @@ fn testnet_genesis(
 			offline_slash: Perbill::from_billionths(1_000_000),
 			session_reward: Perbill::from_billionths(2_065),
 			current_session_reward: 0,
-			validator_count: 5,
-			sessions_per_era: 12,
+			validator_count: 4,
+			sessions_per_era: 2,
 			bonding_duration: 6 * MINUTES,
 			offline_slash_grace: 4,
-			minimum_validator_count: 2,
+			minimum_validator_count: 1,
 			stakers: initial_authorities.iter().map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)).collect(),
 			invulnerables: initial_authorities.iter().map(|x| x.1.clone()).collect(),
 		}),
