@@ -1,0 +1,36 @@
+[package]
+name = "node-executor"
+version = "1.0.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+description = "Substrate node implementation in Rust."
+edition = "2018"
+
+[dependencies]
+trie-root = "0.12"
+parity-codec = "3.3"
+runtime_io = { package = "sr-io", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+state_machine = { package = "substrate-state-machine", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+substrate-executor = { git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+primitives = { package = "substrate-primitives",git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+trie = { package = "substrate-trie", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+node-primitives = { path = "../primitives" }
+node-runtime = { path = "../runtime" }
+
+[dev-dependencies]
+keyring = { package = "substrate-keyring",git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+runtime_primitives = { package = "sr-primitives",git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+runtime_support = { package = "srml-support", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+session = { package = "srml-session", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+system = { package = "srml-system", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+consensus = { package = "srml-consensus", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+treasury = { package = "srml-treasury", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3"}
+contract = { package = "srml-contract", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", rev = "6e67eff0653677d3d01980ca822c4b8a227914a3" }
+staking = { package = "turing-staking", path = "../turingml/staking"}
+wabt = "~0.7.4"
+
+[features]
+benchmarks = []

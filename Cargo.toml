@@ -1,98 +1,40 @@
-[dependencies]
-error-chain = '0.12'
-exit-future = '0.1'
-futures = '0.1'
-hex-literal = '0.1'
-log = '0.4'
-parity-codec = '3.2'
-parking_lot = '0.7.1'
-tokio = '0.1'
-trie-root = '0.12.0'
-
-[dependencies.basic-authorship]
-git = 'https://github.com/paritytech/substrate.git'
-package = 'substrate-basic-authorship'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.consensus]
-git = 'https://github.com/paritytech/substrate.git'
-package = 'substrate-consensus-aura'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.ctrlc]
-features = ['termination']
-version = '3.0'
-
-[dependencies.inherents]
-git = 'https://github.com/paritytech/substrate.git'
-package = 'substrate-inherents'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.network]
-git = 'https://github.com/paritytech/substrate.git'
-package = 'substrate-network'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.turing-node-runtime]
-path = 'runtime'
-
-[dependencies.primitives]
-git = 'https://github.com/paritytech/substrate.git'
-package = 'substrate-primitives'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.sr-io]
-git = 'https://github.com/paritytech/substrate.git'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.substrate-cli]
-git = 'https://github.com/paritytech/substrate.git'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.substrate-client]
-git = 'https://github.com/paritytech/substrate.git'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.substrate-executor]
-git = 'https://github.com/paritytech/substrate.git'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.substrate-service]
-git = 'https://github.com/paritytech/substrate.git'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.transaction-pool]
-git = 'https://github.com/paritytech/substrate.git'
-package = 'substrate-transaction-pool'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.grandpa]
-git = 'https://github.com/paritytech/substrate.git'
-package = 'substrate-finality-grandpa'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.keystore]
-git = 'https://github.com/paritytech/substrate.git'
-package = 'substrate-keystore'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[dependencies.telemetry]
-git = 'https://github.com/paritytech/substrate.git'
-package = 'substrate-telemetry'
-rev = '783ca1892892454e05e234cda5f7a2e42a54461e'
-
-[build-dependencies]
-vergen = '3'
-
 [[bin]]
 name = 'turing-node'
 path = 'src/main.rs'
 
 [package]
-authors = ['Turing Network <huajiannan@abmatrix.cn>']
+authors = ['Turing Network <contact@Turingnetwork.io>']
 build = 'build.rs'
 edition = '2018'
 name = 'turing-node'
-version = '0.1.0'
+version = '0.2.0'
 [profile.release]
 panic = 'unwind'
+
+[dependencies]
+error-chain = "0.12"
+cli = { package = "node-cli", path = "./cli" }
+futures = "0.1"
+ctrlc = { version = "3.0", features = ["termination"] }
+node-runtime = { path = "./runtime" }
+
+[dependencies.telemetry]
+git = 'https://github.com/paritytech/substrate.git'
+package = 'substrate-telemetry'
+rev = '6e67eff0653677d3d01980ca822c4b8a227914a3'
+
+[build-dependencies]
+vergen = "3"
+
+[workspace]
+members = [
+    "cli",
+    "executor",
+    "runtime",
+    "turingml/staking",
+    "turingml/aura"
+]
+
+exclude = [
+    "runtime/wasm",
+]

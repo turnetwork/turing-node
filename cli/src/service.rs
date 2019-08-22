@@ -21,30 +21,23 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use client::{self, LongestChain};
 use consensus::{import_queue, start_aura, AuraImportQueue, NothingExtra, SlotDuration};
 use grandpa;
 use inherents::InherentDataProviders;
 use log::info;
 use network::construct_simple_protocol;
+use node_executor;
+use node_primitives::Block;
+use node_runtime::{GenesisConfig, RuntimeApi};
 use primitives::{ed25519, Pair as PairT};
-use substrate_client as client;
-use substrate_executor::native_executor_instance;
 use substrate_service::construct_service_factory;
+use substrate_service::TelemetryOnConnect;
 use substrate_service::{
     FactoryFullConfiguration, FullBackend, FullClient, FullComponents, FullExecutor, LightBackend,
     LightClient, LightComponents, LightExecutor, TaskExecutor,
 };
 use transaction_pool::{self, txpool::Pool as TransactionPool};
-use turing_node_runtime::{self, opaque::Block, GenesisConfig, RuntimeApi};
-
-pub use substrate_executor::NativeExecutor;
-// Our native executor instance.
-native_executor_instance!(
-	pub Executor,
-	turing_node_runtime::api::dispatch,
-	turing_node_runtime::native_version,
-	include_bytes!("../runtime/wasm/target/wasm32-unknown-unknown/release/turing_node_runtime_wasm.compact.wasm")
-);
 
 construct_simple_protocol! {
     /// Demo protocol attachment for substrate.
@@ -79,7 +72,7 @@ construct_service_factory! {
         Block = Block,
         RuntimeApi = RuntimeApi,
         NetworkProtocol = NodeProtocol { |config| Ok(NodeProtocol::new()) },
-        RuntimeDispatch = Executor,
+        RuntimeDispatch = node_executor::Executor,
         FullTransactionPoolApi = transaction_pool::ChainApi<client::Client<FullBackend<Self>, FullExecutor<Self>, Block, RuntimeApi>, Block>
             { |config, client| Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(client))) },
         LightTransactionPoolApi = transaction_pool::ChainApi<client::Client<LightBackend<Self>, LightExecutor<Self>, Block, RuntimeApi>, Block>
@@ -96,7 +89,7 @@ construct_service_factory! {
 
                 if let Some(ref key) = local_key {
                     info!("Using authority key {}", key.public());
-                    let proposer = Arc::new(basic_authorship::ProposerFactory {
+                    let proposer = Arc::new(substrate_basic_authorship::ProposerFactory {
                         client: service.client(),
                         transaction_pool: service.transaction_pool(),
                         inherents_pool: service.inherents_pool(),
@@ -107,6 +100,7 @@ construct_service_factory! {
                         SlotDuration::get_or_compute(&*client)?,
                         key.clone(),
                         client,
+                        service.select_chain(),
                         block_import.clone(),
                         proposer,
                         service.network(),
@@ -124,19 +118,40 @@ construct_service_factory! {
                     local_key
                 };
 
-                executor.spawn(grandpa::run_grandpa(
-                    grandpa::Config {
-                        local_key,
-                        // FIXME #1578 make this available through chainspec
-                        gossip_duration: Duration::from_millis(333),
-                        justification_period: 4096,
-                        name: Some(service.config.name.clone())
+                let config = grandpa::Config {
+                    local_key,
+                    // FIXME #1578 make this available through chainspec
+                    gossip_duration: Duration::from_millis(333),
+                    justification_period: 4096,
+                    name: Some(service.config.name.clone())
+                };
+
+                match config.local_key {
+                    None => {
+                        executor.spawn(grandpa::run_grandpa_observer(
+                            config,
+                            link_half,
+                            service.network(),
+                            service.on_exit(),
+                        )?);
                     },
-                    link_half,
-                    grandpa::NetworkBridge::new(service.network()),
-                    service.config.custom.inherent_data_providers.clone(),
-                    service.on_exit(),
-                )?);
+                    Some(_) => {
+                        let telemetry_on_connect = TelemetryOnConnect {
+                          on_exit: Box::new(service.on_exit()),
+                          telemetry_connection_sinks: service.telemetry_on_connect_stream(),
+                          executor: &executor,
+                        };
+                        let grandpa_config = grandpa::GrandpaParams {
+                          config: config,
+                          link: link_half,
+                          network: service.network(),
+                          inherent_data_providers: service.config.custom.inherent_data_providers.clone(),
+                          on_exit: service.on_exit(),
+                          telemetry_on_connect: Some(telemetry_on_connect),
+                        };
+                        executor.spawn(grandpa::run_grandpa_voter(grandpa_config)?);
+                    },
+                }
 
                 Ok(service)
             }
@@ -144,11 +159,11 @@ construct_service_factory! {
         LightService = LightComponents<Self>
             { |config, executor| <LightComponents<Factory>>::new(config, executor) },
         FullImportQueue = AuraImportQueue<Self::Block>
-            { |config: &mut FactoryFullConfiguration<Self> , client: Arc<FullClient<Self>>| {
+            { |config: &mut FactoryFullConfiguration<Self> , client: Arc<FullClient<Self>>, select_chain: Self::SelectChain| {
                 let slot_duration = SlotDuration::get_or_compute(&*client)?;
                 let (block_import, link_half) =
-                    grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>>(
-                        client.clone(), client.clone()
+                    grandpa::block_import::<_, _, _, RuntimeApi, FullClient<Self>, _>(
+                        client.clone(), client.clone(), select_chain
                     )?;
                 let block_import = Arc::new(block_import);
                 let justification_import = block_import.clone();
@@ -174,6 +189,14 @@ construct_service_factory! {
                     NothingExtra,
                     config.custom.inherent_data_providers.clone(),
                 ).map_err(Into::into)
+            }
+        },
+        SelectChain = LongestChain<FullBackend<Self>, Self::Block>
+            { |config: &FactoryFullConfiguration<Self>, client: Arc<FullClient<Self>>| {
+                Ok(LongestChain::new(
+                    client.backend().clone(),
+                    client.import_lock()
+                ))
             }
         },
     }

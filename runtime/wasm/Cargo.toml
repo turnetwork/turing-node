@@ -1,22 +1,28 @@
-[profile.release]
-lto = true
-panic = 'abort'
-[dependencies.turing-node-runtime]
-default-features = false
-path = '..'
-
-[features]
-default = []
-std = ['turing-node-runtime/std']
+[package]
+authors = ['Turing Network <contact@turingnetwork.io>']
+edition = '2018'
+name = 'node-runtime-wasm'
+version = '0.2.0'
 
 [lib]
-crate-type = ['cdylib']
+name = "node_runtime"
+crate-type = ["cdylib"]
+
+[dependencies]
+node-runtime = { path = "..", default-features = false }
+
+[features]
+default = ["core"]
+core = [
+	"node-runtime/core",
+]
+std = [
+	"node-runtime/std",
+]
+
+[profile.release]
+panic = "abort"
+lto = true
 
 [workspace]
 members = []
-
-[package]
-authors = ['Turing Network <huajiannan@abmatrix.cn>']
-edition = '2018'
-name = 'turing-node-runtime-wasm'
-version = '0.1.0'
