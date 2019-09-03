@@ -40,7 +40,7 @@ pub type ChainSpec = substrate_service::ChainSpec<GenesisConfig>;
 const MICROS: u128 = 1;
 const MILLICENTS: u128 = 1_000 * MICROS;
 const CENTS: u128 = 1_000 * MILLICENTS; // assume this is worth about a cent.
-const LADS: u128 = 1_000 * CENTS;
+const TNKS: u128 = 1_000 * CENTS;
 
 const MINUTES: u64 = 60;
 const HOURS: u64 = MINUTES * 60;
@@ -73,9 +73,9 @@ impl Default for GenesisConfigBuilder {
 //		const ERA_TIME: u64 = HOURS;
 //		const ERA_PER_SESSIONS: u64 = ERA_TIME / SESSION_TIME;
 
-		const ENDOWMENT: u128 = 20_000_000 * LADS;
-		const STASH: u128 = 50_000 * LADS;
-		const REWARDYEAR: u128 = 10_000_000 * LADS;  // 1000w
+		const ENDOWMENT: u128 = 20_000_000 * TNKS;
+		const STASH: u128 = 50_000 * TNKS;
+		const REWARDYEAR: u128 = 10_000_000 * TNKS;  // 1000w
 
 		Self {
 			sec_per_block: 8,
@@ -89,8 +89,8 @@ impl Default for GenesisConfigBuilder {
 			initial_authorities: vec![],
 			validator_count: 100,
 			minimum_validator_count: 1,
-			validate_minimum_stake: 50_000 * LADS,
-			nominate_minimum_stake: 10 * LADS,
+			validate_minimum_stake: 50_000 * TNKS,
+			nominate_minimum_stake: 10 * TNKS,
 			reward_per_year: REWARDYEAR,
 			bonding_duration: 240,
 			print: false,
@@ -150,14 +150,14 @@ impl GenesisConfigBuilder {
 			democracy: Some(DemocracyConfig {
 				launch_period: 10 * MINUTES,    // 1 day per public referendum
 				voting_period: 10 * MINUTES,    // 3 days to discuss & vote on an active referendum
-				minimum_deposit: 50 * LADS,    // 12000 as the minimum deposit for a referendum
+				minimum_deposit: 50 * TNKS,    // 12000 as the minimum deposit for a referendum
 				public_delay: 10 * MINUTES,
 				max_lock_periods: 6,
 			}),
 			council_seats: Some(CouncilSeatsConfig {
 				active_council: vec![],
-				candidacy_bond: 10 * LADS,
-				voter_bond: 1 * LADS,
+				candidacy_bond: 10 * TNKS,
+				voter_bond: 1 * TNKS,
 				present_slash_per_voter: 1 * CENTS,
 				carry_count: 6,
 				presentation_duration: 1 * DAYS,
@@ -176,7 +176,7 @@ impl GenesisConfigBuilder {
 			}),
 			treasury: Some(TreasuryConfig {
 				proposal_bond: Permill::from_percent(5),
-				proposal_bond_minimum: 1 * LADS,
+				proposal_bond_minimum: 1 * TNKS,
 				spend_period: 1 * DAYS,
 				burn: Permill::from_percent(50),
 			}),
@@ -242,12 +242,12 @@ pub fn get_nodeinfo(seed: &str) -> Vec<u8> {
 /// Helper function to get node information
 pub fn get_nodeinformation() -> Vec<(Vec<u8>,Vec<u8>,Vec<u8>)> {
 	vec![
-		(b"Ali".to_vec(), b"laddernetwork.io".to_vec(),b"ladder".to_vec()),
-		(b"Bob".to_vec(), b"laddernetwork.io".to_vec(),b"ladder".to_vec()),
-		(b"Dav".to_vec(), b"laddernetwork.io".to_vec(),b"ladder".to_vec()),
-		(b"Eva".to_vec(), b"laddernetwork.io".to_vec(),b"ladder".to_vec()),
-		(b"Tra".to_vec(), b"laddernetwork.io".to_vec(),b"ladder".to_vec()),
-		(b"Glo".to_vec(), b"laddernetwork.io".to_vec(),b"ladder".to_vec()),
+		(b"Ali".to_vec(), b"TNKdernetwork.io".to_vec(),b"TNKder".to_vec()),
+		(b"Bob".to_vec(), b"TNKdernetwork.io".to_vec(),b"TNKder".to_vec()),
+		(b"Dav".to_vec(), b"TNKdernetwork.io".to_vec(),b"TNKder".to_vec()),
+		(b"Eva".to_vec(), b"TNKdernetwork.io".to_vec(),b"TNKder".to_vec()),
+		(b"Tra".to_vec(), b"TNKdernetwork.io".to_vec(),b"TNKder".to_vec()),
+		(b"Glo".to_vec(), b"TNKdernetwork.io".to_vec(),b"TNKder".to_vec()),
 		([].to_vec(), [].to_vec(),[].to_vec()),
 	]
 }
